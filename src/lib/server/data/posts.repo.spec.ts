@@ -65,12 +65,24 @@ describe('searchPosts', () => {
 		expect(hits.every((post) => post.author.name === 'Marek Dvořák')).toBe(true);
 	});
 
-	it('searches the requested locale, not always English', () => {
-		// German title of accessible-combobox-from-scratch is
-		// "Eine zugängliche Combobox von Grund auf", which also contains "Combobox".
-		const german = searchPosts({ q: 'Combobox', tag: null, sort: 'relevance', locale: 'de' });
-		const english = searchPosts({ q: 'combobox', tag: null, sort: 'relevance', locale: 'en' });
-		expect(english).toHaveLength(1);
-		expect(german).toHaveLength(1);
+	it('searches the requested locale and not another', () => {
+		// "zugängliche" appears only in the German title, "scratch" only in the English one.
+		const germanOnly = { q: 'zugängliche', tag: null, sort: 'relevance' } as const;
+		const englishOnly = { q: 'scratch', tag: null, sort: 'relevance' } as const;
+
+		expect(searchPosts({ ...germanOnly, locale: 'de' })).toHaveLength(1);
+		expect(searchPosts({ ...germanOnly, locale: 'en' })).toHaveLength(0);
+
+		expect(searchPosts({ ...englishOnly, locale: 'en' })).toHaveLength(1);
+		expect(searchPosts({ ...englishOnly, locale: 'de' })).toHaveLength(0);
+	});
+
+	it('ranks title matches above tag and author matches, per locale', () => {
+		// "Warum" appears in two German titles and no English one.
+		const german = searchPosts({ q: 'Warum', tag: null, sort: 'relevance', locale: 'de' });
+		expect(german).toHaveLength(2);
+		expect(german.every((post) => post.translations.de.title.includes('Warum'))).toBe(true);
+
+		expect(searchPosts({ q: 'Warum', tag: null, sort: 'relevance', locale: 'en' })).toHaveLength(0);
 	});
 });
