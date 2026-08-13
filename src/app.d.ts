@@ -2,11 +2,11 @@
 // for information about these interfaces
 declare global {
 	namespace App {
-		// interface Error {}
-		// interface Locals {}
-		// interface PageData {}
-		// interface PageState {}
-		// interface Platform {}
+		interface Locals {
+			locale: 'en' | 'de';
+			theme: 'light' | 'dark';
+			user: { id: string; email: string; name: string; role: 'admin' | 'editor' | 'viewer' } | null;
+		}
 	}
 }
 
