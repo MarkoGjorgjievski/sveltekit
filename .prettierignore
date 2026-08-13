@@ -1,0 +1,14 @@
+# Package Managers
+package-lock.json
+pnpm-lock.yaml
+yarn.lock
+bun.lock
+bun.lockb
+
+# Miscellaneous
+/static/
+
+# Assignment-supplied fixtures — kept byte-identical to the provided mocks/
+# so they can be diffed against the original. Formatting them would obscure
+# that they are unmodified upstream data.
+/src/lib/fixtures/
