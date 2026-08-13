@@ -1,6 +1,9 @@
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
+import { ITEM_STATUSES, type ItemStatus } from '$lib/schemas/item';
 import { DEFAULT_QUERY } from '$lib/url/query-codec';
-import { ItemMutationError, queryItems, updateItemStatus } from './items.repo';
+import { ItemMutationError, queryItems, resetItemStore, updateItemStatus } from './items.repo';
+
+beforeEach(resetItemStore);
 
 describe('queryItems', () => {
 	it('paginates without lying about the total', () => {
@@ -30,10 +33,38 @@ describe('queryItems', () => {
 		expect([...names].sort((a, b) => a.localeCompare(b, 'en'))).toEqual(names);
 	});
 
+	it('sorts status by lifecycle position, not alphabetically', () => {
+		const perPage = 50 as const;
+		const statuses: ItemStatus[] = [];
+		const first = queryItems({ ...DEFAULT_QUERY, sort: 'status', dir: 'asc', perPage });
+
+		for (let page = 1; page <= first.pageCount; page++) {
+			const result = queryItems({ ...DEFAULT_QUERY, sort: 'status', dir: 'asc', perPage, page });
+			statuses.push(...result.rows.map((row) => row.status));
+		}
+
+		const positions = statuses.map((status) => ITEM_STATUSES.indexOf(status));
+		expect(positions).toEqual([...positions].sort((a, b) => a - b));
+
+		const distinct = [...new Set(statuses)];
+		expect(distinct).toEqual(['draft', 'scheduled', 'active', 'paused', 'completed', 'archived']);
+		expect(distinct).not.toEqual([...distinct].sort());
+	});
+
 	it('clamps a page beyond the end to the last page', () => {
 		const result = queryItems({ ...DEFAULT_QUERY, page: 999 });
 		expect(result.page).toBe(result.pageCount);
 		expect(result.rows.length).toBeGreaterThan(0);
+	});
+
+	it('returns a coherent empty page when nothing matches', () => {
+		const result = queryItems({ ...DEFAULT_QUERY, q: 'zzz-no-such-campaign' });
+
+		expect(result.total).toBe(0);
+		expect(result.rows).toEqual([]);
+		expect(result.page).toBe(1);
+		expect(result.pageCount).toBe(1);
+		expect(result.facets.status.active).toBe(0);
 	});
 
 	it('counts each facet excluding only its own selection', () => {

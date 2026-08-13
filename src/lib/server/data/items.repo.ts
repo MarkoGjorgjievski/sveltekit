@@ -128,3 +128,16 @@ export function updateItemStatus(id: string, status: ItemStatus): Item {
 	store.set(id, updated);
 	return updated;
 }
+
+/**
+ * Reseeds the in-memory store from the fixtures.
+ *
+ * The store is module-level mutable state, so any spec that calls
+ * updateItemStatus would otherwise leak into every spec that counts rows.
+ * Exported so each suite can start from a known baseline rather than
+ * depending on test declaration order.
+ */
+export function resetItemStore(): void {
+	store.clear();
+	for (const item of items) store.set(item.id, item);
+}
