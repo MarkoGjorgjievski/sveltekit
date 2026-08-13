@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { ItemQuerySchema } from '$lib/schemas/query';
 import { DEFAULT_QUERY, parseQuery, toSearchParams, type ItemQuery } from './query-codec';
 
 describe('parseQuery', () => {
@@ -43,6 +44,13 @@ describe('parseQuery', () => {
 		expect(parsed.status).toEqual([]);
 		expect(parsed.perPage).toBe(DEFAULT_QUERY.perPage);
 	});
+
+	it('serialises the tags facet as a singular tag parameter', () => {
+		const params = toSearchParams({ ...DEFAULT_QUERY, tags: ['design', 'ai'] });
+		expect(params.getAll('tag')).toEqual(['design', 'ai']);
+		expect(params.getAll('tags')).toEqual([]);
+		expect(parseQuery(params).tags).toEqual(['design', 'ai']);
+	});
 });
 
 describe('toSearchParams', () => {
@@ -53,5 +61,9 @@ describe('toSearchParams', () => {
 	it('emits repeated keys for multi-value facets', () => {
 		const params = toSearchParams({ ...DEFAULT_QUERY, status: ['active', 'draft'] });
 		expect(params.getAll('status')).toEqual(['active', 'draft']);
+	});
+
+	it('takes its defaults from the schema, not a second copy', () => {
+		expect(DEFAULT_QUERY).toEqual(ItemQuerySchema.parse({}));
 	});
 });
