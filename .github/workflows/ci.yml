@@ -16,9 +16,7 @@ jobs:
       - run: npm run check
       # The vitest "client" project runs component tests in real Chromium.
       - run: npx playwright install --with-deps chromium
-      # --passWithNoTests is transitional: the first unit tests land in the next
-      # task, which removes this flag so that "no tests found" fails again.
-      - run: npm run test:unit -- --run --passWithNoTests
+      - run: npm run test:unit -- --run
 
   build:
     runs-on: ubuntu-latest
