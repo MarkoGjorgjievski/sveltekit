@@ -18,7 +18,7 @@ export function parseFixture<T>(
 	label: string
 ): FixtureResult<T> {
 	if (!Array.isArray(raw)) {
-		return { valid: [], dropped: 0, issues: [`${label}: payload is not an array`] };
+		return { valid: [], dropped: 1, issues: [`${label}: payload is not an array`] };
 	}
 
 	const valid: T[] = [];

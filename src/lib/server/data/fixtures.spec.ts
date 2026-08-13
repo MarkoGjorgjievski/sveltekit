@@ -30,6 +30,21 @@ describe('parseFixture', () => {
 		expect(result.valid).toEqual([]);
 		expect(result.issues[0]).toContain('not an array');
 	});
+
+	it('never reports fewer dropped records than it has issues', () => {
+		const notAnArray = parseFixture(Row, { id: 'a', n: 1 }, 'rows');
+		expect(notAnArray.dropped).toBe(notAnArray.issues.length);
+
+		const partial = parseFixture(
+			Row,
+			[
+				{ id: 'a', n: 1 },
+				{ id: 'b', n: 'nope' }
+			],
+			'rows'
+		);
+		expect(partial.dropped).toBe(partial.issues.length);
+	});
 });
 
 describe('shipped fixtures', () => {
