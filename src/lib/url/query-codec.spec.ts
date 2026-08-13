@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest';
-import { ItemQuerySchema } from '$lib/schemas/query';
 import { DEFAULT_QUERY, parseQuery, toSearchParams, type ItemQuery } from './query-codec';
 
 describe('parseQuery', () => {
@@ -63,7 +62,16 @@ describe('toSearchParams', () => {
 		expect(params.getAll('status')).toEqual(['active', 'draft']);
 	});
 
-	it('takes its defaults from the schema, not a second copy', () => {
-		expect(DEFAULT_QUERY).toEqual(ItemQuerySchema.parse({}));
+	it('has the documented default query', () => {
+		expect(DEFAULT_QUERY).toEqual({
+			q: '',
+			status: [],
+			channel: [],
+			tags: [],
+			sort: 'updatedAt',
+			dir: 'desc',
+			page: 1,
+			perPage: 25
+		});
 	});
 });
