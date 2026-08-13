@@ -21,13 +21,12 @@
 		`${swapLocale(page.url.pathname, otherLocale)}${page.url.search}`
 	);
 
-	// Home and Blog now resolve through $app/paths, since both route ids exist. Search stays a
-	// plain string (its route doesn't exist until Task 13) and keeps its own suppression below.
+	// Home, Blog, and Search all resolve through $app/paths now that every route id exists.
 	const navLinks = $derived([
 		{ href: home, label: t(locale, 'nav.home') },
-		{ href: resolve('/[[lang=locale]]/blog', { lang: locale }), label: t(locale, 'nav.blog') }
+		{ href: resolve('/[[lang=locale]]/blog', { lang: locale }), label: t(locale, 'nav.blog') },
+		{ href: resolve('/[[lang=locale]]/search', { lang: locale }), label: t(locale, 'nav.search') }
 	]);
-	const searchHref = $derived(`/${locale}/search`);
 </script>
 
 <!--
@@ -53,11 +52,6 @@
 					{link.label}
 				</a>
 			{/each}
-			<!-- resolve() once /search exists (task 13) -->
-			<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
-			<a href={searchHref} class="text-sm font-medium text-ink-muted hover:text-ink">
-				{t(locale, 'nav.search')}
-			</a>
 		</nav>
 
 		<div class="flex items-center gap-3">
