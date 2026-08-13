@@ -11,10 +11,14 @@ jobs:
       - uses: actions/setup-node@v5
         with: { node-version-file: '.nvmrc', cache: npm }
       - run: npm ci
+      # The vitest "client" project runs component tests in real Chromium.
+      - run: npx playwright install --with-deps chromium
       - run: npx prettier --check .
       - run: npx eslint .
       - run: npm run check
-      - run: npm run test:unit -- --run
+      # --passWithNoTests is transitional: the first unit tests land in the next
+      # task, which removes this flag so that "no tests found" fails again.
+      - run: npm run test:unit -- --run --passWithNoTests
 
   build:
     runs-on: ubuntu-latest
