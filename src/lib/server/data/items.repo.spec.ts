@@ -36,9 +36,31 @@ describe('queryItems', () => {
 		expect(result.rows.length).toBeGreaterThan(0);
 	});
 
-	it('returns facet counts for the unfiltered dimension', () => {
-		const result = queryItems({ ...DEFAULT_QUERY, status: ['active'] });
-		expect(result.facets.channel.email).toBeGreaterThan(0);
+	it('counts each facet excluding only its own selection', () => {
+		const selected = queryItems({ ...DEFAULT_QUERY, status: ['active'], perPage: 50 });
+
+		// The channel counts must respect the active status filter.
+		expect(selected.facets.channel.email).toBe(15);
+		expect(selected.facets.channel.social).toBe(20);
+
+		// The status counts must NOT be narrowed by the status selection itself,
+		// so the user can still see what widening to another status would give.
+		expect(selected.facets.status.active).toBe(72);
+		expect(selected.facets.status.draft).toBe(23);
+	});
+
+	it('a facet count equals the total you get by selecting it', () => {
+		const selected = queryItems({ ...DEFAULT_QUERY, status: ['active'], perPage: 50 });
+
+		for (const channel of ['email', 'social', 'web', 'push', 'sms'] as const) {
+			const claimed = selected.facets.channel[channel];
+			const actual = queryItems({
+				...DEFAULT_QUERY,
+				status: ['active'],
+				channel: [channel]
+			}).total;
+			expect(claimed, `channel ${channel}`).toBe(actual);
+		}
 	});
 });
 

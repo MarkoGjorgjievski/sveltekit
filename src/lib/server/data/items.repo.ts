@@ -50,24 +50,44 @@ function matches(item: Item, query: ItemQuery): boolean {
 	return true;
 }
 
-function countFacets(rows: Item[]): FacetCounts {
-	const status = Object.fromEntries(ITEM_STATUSES.map((key) => [key, 0])) as Record<
+function countStatus(rows: Item[]): Record<ItemStatus, number> {
+	const counts = Object.fromEntries(ITEM_STATUSES.map((key) => [key, 0])) as Record<
 		ItemStatus,
 		number
 	>;
-	const channel = Object.fromEntries(ITEM_CHANNELS.map((key) => [key, 0])) as Record<
+	for (const row of rows) counts[row.status] += 1;
+	return counts;
+}
+
+function countChannel(rows: Item[]): Record<ItemChannel, number> {
+	const counts = Object.fromEntries(ITEM_CHANNELS.map((key) => [key, 0])) as Record<
 		ItemChannel,
 		number
 	>;
-	const tags: Record<string, number> = {};
+	for (const row of rows) counts[row.channel] += 1;
+	return counts;
+}
 
+function countTags(rows: Item[]): Record<string, number> {
+	const counts: Record<string, number> = {};
 	for (const row of rows) {
-		status[row.status] += 1;
-		channel[row.channel] += 1;
-		for (const tag of row.tags) tags[tag] = (tags[tag] ?? 0) + 1;
+		for (const tag of row.tags) counts[tag] = (counts[tag] ?? 0) + 1;
 	}
+	return counts;
+}
 
-	return { status, channel, tags };
+/**
+ * Each facet dimension is counted from rows matching every *other* active
+ * filter, but not its own. That way a chip's count equals what selecting it
+ * would actually deliver (cross-facet numbers are true), while a facet still
+ * shows every value you could widen to (its own selection doesn't shrink it).
+ */
+function computeFacets(all: Item[], query: ItemQuery): FacetCounts {
+	return {
+		status: countStatus(all.filter((item) => matches(item, { ...query, status: [] }))),
+		channel: countChannel(all.filter((item) => matches(item, { ...query, channel: [] }))),
+		tags: countTags(all.filter((item) => matches(item, { ...query, tags: [] })))
+	};
 }
 
 export function queryItems(query: ItemQuery): ItemPage {
@@ -95,7 +115,7 @@ export function queryItems(query: ItemQuery): ItemPage {
 		total,
 		page,
 		pageCount,
-		facets: countFacets(all.filter((item) => matches(item, { ...query, status: [], channel: [] })))
+		facets: computeFacets(all, query)
 	};
 }
 
