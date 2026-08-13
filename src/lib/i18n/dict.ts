@@ -5,11 +5,9 @@ import additionsDe from './additions.de.json';
 import type { Locale } from '$lib/schemas/post';
 
 const en = { ...baseEn, ...additionsEn };
-const de = { ...baseDe, ...additionsDe };
 
 export type MessageKey = keyof typeof en;
 
-export const dictionaries: Record<Locale, Record<MessageKey, string>> = {
-	en,
-	de: de as Record<MessageKey, string>
-};
+const de = { ...baseDe, ...additionsDe } satisfies Record<MessageKey, string>;
+
+export const dictionaries: Record<Locale, Record<MessageKey, string>> = { en, de };
