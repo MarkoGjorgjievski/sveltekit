@@ -29,6 +29,7 @@
 	"home.proof.quote3.text": "Unsere Lighthouse-Werte passen endlich zu unserem Anspruch.",
 	"home.proof.quote3.author": "Priya Natarajan",
 	"home.proof.quote3.role": "Staff Engineer, Fieldnote",
+	"blog.description": "Notizen zu Performance, Barrierefreiheit und schnellem Ausliefern.",
 	"blog.pagination.prev": "Zurück",
 	"blog.pagination.next": "Weiter",
 	"blog.pagination.page": "Seite {page} von {total}",

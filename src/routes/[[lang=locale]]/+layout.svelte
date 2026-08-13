@@ -21,18 +21,19 @@
 		`${swapLocale(page.url.pathname, otherLocale)}${page.url.search}`
 	);
 
+	// Home and Blog now resolve through $app/paths, since both route ids exist. Search stays a
+	// plain string (its route doesn't exist until Task 13) and keeps its own suppression below.
 	const navLinks = $derived([
-		{ href: `/${locale}`, label: t(locale, 'nav.home') },
-		{ href: `/${locale}/blog`, label: t(locale, 'nav.blog') },
-		{ href: `/${locale}/search`, label: t(locale, 'nav.search') }
+		{ href: home, label: t(locale, 'nav.home') },
+		{ href: resolve('/[[lang=locale]]/blog', { lang: locale }), label: t(locale, 'nav.blog') }
 	]);
+	const searchHref = $derived(`/${locale}/search`);
 </script>
 
 <!--
-	The home link resolves through $app/paths now that the route exists. Blog/Search and the
-	locale switcher still build plain strings (route ids that don't exist yet; swapLocale()'s
-	return type isn't the branded ResolvedPathname resolve() produces), so `resolve()` can't
-	type-check those — same tradeoff Button.svelte already documents for its caller-supplied href.
+	The locale switcher still builds a plain string (swapLocale()'s return type isn't the branded
+	ResolvedPathname resolve() produces), so `resolve()` can't type-check it — same tradeoff
+	Button.svelte already documents for its caller-supplied href.
 -->
 
 <a
@@ -48,12 +49,15 @@
 
 		<nav class="flex items-center gap-6">
 			{#each navLinks as link (link.href)}
-				<!-- resolve() once /blog and /search exist (tasks 12, 13) -->
-				<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
 				<a href={link.href} class="text-sm font-medium text-ink-muted hover:text-ink">
 					{link.label}
 				</a>
 			{/each}
+			<!-- resolve() once /search exists (task 13) -->
+			<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
+			<a href={searchHref} class="text-sm font-medium text-ink-muted hover:text-ink">
+				{t(locale, 'nav.search')}
+			</a>
 		</nav>
 
 		<div class="flex items-center gap-3">

@@ -29,6 +29,7 @@
 	"home.proof.quote3.text": "Our Lighthouse scores finally match our ambitions.",
 	"home.proof.quote3.author": "Priya Natarajan",
 	"home.proof.quote3.role": "Staff Engineer, Fieldnote",
+	"blog.description": "Field notes on performance, accessibility, and shipping fast.",
 	"blog.pagination.prev": "Previous",
 	"blog.pagination.next": "Next",
 	"blog.pagination.page": "Page {page} of {total}",
