@@ -27,6 +27,12 @@ describe('Select', () => {
 
 		const select = screen.getByLabelText('Country');
 		await expect.element(select).toHaveAttribute('aria-invalid', 'true');
-		await expect.element(select).toHaveAttribute('aria-describedby', 'country-error');
+
+		const describedBy = await select.element().getAttribute('aria-describedby');
+		expect(describedBy).toBe('country-error');
+
+		const errorElement = document.getElementById(describedBy ?? '');
+		expect(errorElement).not.toBeNull();
+		expect(errorElement?.textContent).toBe('Country is required');
 	});
 });

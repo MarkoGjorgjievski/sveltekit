@@ -29,10 +29,10 @@
 			'inline-flex items-center justify-center gap-2 rounded-(--radius-control) font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50',
 			{
 				variant: {
-					primary: 'bg-accent text-white hover:bg-accent-ink',
+					primary: 'bg-accent text-accent-foreground hover:bg-accent-ink',
 					secondary: 'border border-border-strong bg-surface text-ink hover:bg-surface-muted',
 					ghost: 'text-ink-muted hover:bg-surface-muted hover:text-ink',
-					danger: 'bg-danger-ink text-white hover:opacity-90'
+					danger: 'bg-danger-ink text-danger-foreground hover:opacity-90'
 				},
 				size: { sm: 'h-8 px-3 text-sm', md: 'h-10 px-4 text-sm' }
 			},
@@ -43,6 +43,8 @@
 </script>
 
 {#if href}
+	<!-- href is caller-supplied and may be internal or external, so resolve() cannot be
+	     enforced without breaking the href?: string contract this component promises. -->
 	<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
 	<a {href} class={className}>{@render children()}</a>
 {:else}

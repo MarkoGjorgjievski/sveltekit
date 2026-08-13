@@ -20,6 +20,8 @@
 	--color-warning-ink: oklch(45% 0.12 70);
 	--color-danger-surface: oklch(96% 0.04 25);
 	--color-danger-ink: oklch(48% 0.16 25);
+	--color-accent-foreground: oklch(100% 0 0); /* on --color-accent: 6.71:1 */
+	--color-danger-foreground: oklch(100% 0 0); /* on --color-danger-ink: 7.11:1 */
 
 	--radius-card: 0.75rem;
 	--radius-control: 0.5rem;
@@ -43,6 +45,8 @@
 	--color-warning-ink: oklch(86% 0.13 85);
 	--color-danger-surface: oklch(26% 0.06 25);
 	--color-danger-ink: oklch(82% 0.13 25);
+	--color-accent-foreground: oklch(18% 0.04 295); /* on --color-accent: 8.43:1 */
+	--color-danger-foreground: oklch(18% 0.04 25); /* on --color-danger-ink: 9.79:1 */
 }
 
 @layer base {
