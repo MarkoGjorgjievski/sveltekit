@@ -1,0 +1,84 @@
+<script lang="ts">
+	import { page } from '$app/state';
+	import { t } from '$lib/i18n/t';
+	import Button from '$lib/ui/Button.svelte';
+	import Container from '$lib/ui/Container.svelte';
+	import type { LayoutProps } from './$types';
+
+	let { data, children }: LayoutProps = $props();
+
+	const locale = $derived(data.locale);
+	const otherLocale = $derived(locale === 'en' ? 'de' : 'en');
+
+	// Where the theme-toggle action should send the browser back to after it flips the cookie.
+	const redirectTo = $derived(page.url.pathname + page.url.search);
+
+	// Same page, other locale — swap only the leading /en or /de segment.
+	const otherLocalePath = $derived(
+		`/${otherLocale}${page.url.pathname.replace(/^\/(en|de)/, '')}${page.url.search}`
+	);
+
+	const navLinks = $derived([
+		{ href: `/${locale}`, label: t(locale, 'nav.home') },
+		{ href: `/${locale}/blog`, label: t(locale, 'nav.blog') },
+		{ href: `/${locale}/search`, label: t(locale, 'nav.search') }
+	]);
+</script>
+
+<!--
+	Every href below is assembled from the active locale rather than a route id that exists yet
+	(blog/search land in later tasks; this shell has to compose them today), so `resolve()` can't
+	type-check them — same tradeoff Button.svelte already documents for its caller-supplied href.
+-->
+
+<a
+	href="#main"
+	class="sr-only rounded-(--radius-control) bg-accent px-4 py-2 text-accent-foreground focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-50"
+>
+	{t(locale, 'a11y.skipToContent')}
+</a>
+
+<header class="border-b border-border bg-surface">
+	<Container class="flex h-16 items-center justify-between gap-4">
+		<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
+		<a href={`/${locale}`} class="text-lg font-semibold text-ink">Demo Co.</a>
+
+		<nav class="flex items-center gap-6">
+			{#each navLinks as link (link.href)}
+				<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
+				<a href={link.href} class="text-sm font-medium text-ink-muted hover:text-ink">
+					{link.label}
+				</a>
+			{/each}
+		</nav>
+
+		<div class="flex items-center gap-3">
+			<!-- eslint-disable svelte/no-navigation-without-resolve -->
+			<a
+				href={otherLocalePath}
+				hreflang={otherLocale}
+				class="text-sm font-medium text-ink-muted uppercase hover:text-ink"
+			>
+				{otherLocale}
+			</a>
+			<!-- eslint-enable svelte/no-navigation-without-resolve -->
+
+			<form method="POST" action={`/${locale}/theme?/theme`}>
+				<input type="hidden" name="redirectTo" value={redirectTo} />
+				<Button type="submit" variant="ghost" size="sm">
+					{t(locale, 'nav.toggleTheme')}
+				</Button>
+			</form>
+		</div>
+	</Container>
+</header>
+
+<main id="main">
+	{@render children()}
+</main>
+
+<footer class="border-t border-border bg-surface-muted">
+	<Container class="py-8 text-sm text-ink-muted">
+		{t(locale, 'footer.copy')}
+	</Container>
+</footer>
