@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import items from '$lib/fixtures/items.json';
+import posts from '$lib/fixtures/posts.json';
+import users from '$lib/fixtures/users.json';
 import { ItemSchema } from './item';
 import { PostSchema } from './post';
 import { CredentialsSchema, UserSchema } from './user';
@@ -26,25 +28,43 @@ describe('ItemSchema', () => {
 	});
 });
 
+const validPost = (posts as unknown[])[0] as Record<string, unknown>;
+const validUser = (users as unknown[])[0] as Record<string, unknown>;
+const author = validPost.author as Record<string, unknown>;
+const translations = validPost.translations as Record<string, unknown>;
+
 describe('PostSchema', () => {
-	it('rejects an object missing every required field', () => {
-		expect(PostSchema.safeParse({ id: 'x' }).success).toBe(false);
+	it('accepts an unmodified fixture record', () => {
+		expect(PostSchema.safeParse(validPost).success).toBe(true);
+	});
+
+	it.each([
+		['a slug with spaces and capitals', { slug: 'Not A Slug' }],
+		['a coverColor missing its leading hash', { coverColor: '1e293b' }],
+		['an avatarColor that is not hex', { author: { ...author, avatarColor: 'purple' } }],
+		['a publishedAt with no time component', { publishedAt: '2026-05-31' }],
+		['a readingTimeMinutes of zero', { readingTimeMinutes: 0 }],
+		['a missing German translation', { translations: { en: translations.en } }],
+		[
+			'an empty title',
+			{ translations: { ...translations, en: { ...(translations.en as object), title: '' } } }
+		]
+	])('rejects %s', (_label, override) => {
+		expect(PostSchema.safeParse({ ...validPost, ...override }).success).toBe(false);
 	});
 });
 
 describe('UserSchema', () => {
-	it('rejects an invalid email', () => {
-		expect(
-			UserSchema.safeParse({ id: 'a', email: 'nope', password: 'p', name: 'n', role: 'admin' })
-				.success
-		).toBe(false);
+	it('accepts an unmodified fixture record', () => {
+		expect(UserSchema.safeParse(validUser).success).toBe(true);
 	});
 
-	it('rejects an unknown role', () => {
-		expect(
-			UserSchema.safeParse({ id: 'a', email: 'a@b.co', password: 'p', name: 'n', role: 'root' })
-				.success
-		).toBe(false);
+	it.each([
+		['an unknown role', { role: 'root' }],
+		['a malformed email', { email: 'nope' }],
+		['an empty password', { password: '' }]
+	])('rejects %s', (_label, override) => {
+		expect(UserSchema.safeParse({ ...validUser, ...override }).success).toBe(false);
 	});
 });
 
