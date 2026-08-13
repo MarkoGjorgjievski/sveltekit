@@ -7,6 +7,8 @@ export const handle: Handle = async ({ event, resolve }) => {
 
 	return resolve(event, {
 		transformPageChunk: ({ html }) =>
-			html.replace('%lang%', event.locals.locale).replace('%theme%', event.locals.theme)
+			html.replace(/<html[^>]*>/, (tag) =>
+				tag.replace('%lang%', event.locals.locale).replace('%theme%', event.locals.theme)
+			)
 	});
 };
