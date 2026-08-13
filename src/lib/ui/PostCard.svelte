@@ -28,7 +28,15 @@
 			<span aria-hidden="true">&middot;</span>
 			<span>{t(locale, 'blog.readingTime', { minutes: post.readingTimeMinutes })}</span>
 		</div>
-		<a {href} class="mt-auto text-sm font-medium text-accent-ink hover:underline">
+		<!-- Decorative duplicate of the title link above: same destination, visible "read more"
+		     affordance. Hidden from assistive tech and the tab order so a screen reader's link list
+		     doesn't show nine identical "Read post" entries alongside the nine titled ones. -->
+		<a
+			{href}
+			aria-hidden="true"
+			tabindex="-1"
+			class="mt-auto text-sm font-medium text-accent-ink hover:underline"
+		>
 			{t(locale, 'blog.readMore')}
 		</a>
 	</Card>

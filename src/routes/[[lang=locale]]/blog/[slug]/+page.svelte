@@ -17,7 +17,9 @@
 	const translation = $derived(post.translations[locale]);
 	// Bodies are plain text, not markdown (schemas.json's label is wrong) — the only structure is
 	// blank-line paragraph breaks, so splitting on them is the whole job. No parser, no {@html}.
-	const paragraphs = $derived(translation.body.split('\n\n'));
+	// \r?\n\r?\n tolerates CRLF line endings, and filter(Boolean) drops the empty paragraph a
+	// trailing blank line would otherwise produce.
+	const paragraphs = $derived(translation.body.split(/\r?\n\r?\n/).filter(Boolean));
 	const canonicalPath = $derived(`/${locale}/blog/${post.slug}`);
 	const blogHref = $derived(resolve('/[[lang=locale]]/blog', { lang: locale }));
 	const homeHref = $derived(resolve('/[[lang=locale]]', { lang: locale }));

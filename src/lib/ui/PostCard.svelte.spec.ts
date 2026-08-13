@@ -52,4 +52,18 @@ describe('PostCard', () => {
 
 		await expect.element(screen.getByText('99 min read')).toBeInTheDocument();
 	});
+
+	it('exposes a single link per card to assistive tech', async () => {
+		const post = makePost();
+		const screen = render(PostCard, { post, locale: 'en' });
+
+		// The card has two anchors to the same post (the h2 title and a visible "read more"
+		// affordance), but the second is decorative — aria-hidden and out of the tab order — so
+		// only one should surface via the accessible link role.
+		const links = screen.container.querySelectorAll('a');
+		expect(links).toHaveLength(2);
+
+		const link = screen.getByRole('link');
+		await expect.element(link).toHaveAccessibleName('Test Post');
+	});
 });
