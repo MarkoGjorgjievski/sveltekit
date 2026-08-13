@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { page } from '$app/state';
+	import { resolve } from '$app/paths';
 	import { t } from '$lib/i18n/t';
+	import { swapLocale } from '$lib/seo/paths';
 	import Button from '$lib/ui/Button.svelte';
 	import Container from '$lib/ui/Container.svelte';
 	import type { LayoutProps } from './$types';
@@ -9,13 +11,14 @@
 
 	const locale = $derived(data.locale);
 	const otherLocale = $derived(locale === 'en' ? 'de' : 'en');
+	const home = $derived(resolve('/[[lang=locale]]', { lang: locale }));
 
 	// Where the theme-toggle action should send the browser back to after it flips the cookie.
 	const redirectTo = $derived(page.url.pathname + page.url.search);
 
 	// Same page, other locale — swap only the leading /en or /de segment.
 	const otherLocalePath = $derived(
-		`/${otherLocale}${page.url.pathname.replace(/^\/(en|de)/, '')}${page.url.search}`
+		`${swapLocale(page.url.pathname, otherLocale)}${page.url.search}`
 	);
 
 	const navLinks = $derived([
@@ -26,9 +29,10 @@
 </script>
 
 <!--
-	Every href below is assembled from the active locale rather than a route id that exists yet
-	(blog/search land in later tasks; this shell has to compose them today), so `resolve()` can't
-	type-check them — same tradeoff Button.svelte already documents for its caller-supplied href.
+	The home link resolves through $app/paths now that the route exists. Blog/Search and the
+	locale switcher still build plain strings (route ids that don't exist yet; swapLocale()'s
+	return type isn't the branded ResolvedPathname resolve() produces), so `resolve()` can't
+	type-check those — same tradeoff Button.svelte already documents for its caller-supplied href.
 -->
 
 <a
@@ -40,11 +44,11 @@
 
 <header class="border-b border-border bg-surface">
 	<Container class="flex h-16 items-center justify-between gap-4">
-		<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
-		<a href={`/${locale}`} class="text-lg font-semibold text-ink">Demo Co.</a>
+		<a href={home} class="text-lg font-semibold text-ink">Demo Co.</a>
 
 		<nav class="flex items-center gap-6">
 			{#each navLinks as link (link.href)}
+				<!-- resolve() once /blog and /search exist (tasks 12, 13) -->
 				<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
 				<a href={link.href} class="text-sm font-medium text-ink-muted hover:text-ink">
 					{link.label}

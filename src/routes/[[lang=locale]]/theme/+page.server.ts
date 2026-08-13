@@ -6,18 +6,34 @@ export const load: PageServerLoad = ({ locals }) => {
 	redirect(302, `/${locals.locale}`);
 };
 
-function isSafeRedirectTarget(path: FormDataEntryValue | null): path is string {
-	return typeof path === 'string' && path.startsWith('/') && !path.startsWith('//');
+// `_`-prefixed so SvelteKit's route-module export validator allows it alongside `load`/`actions`
+// (it rejects any other named export) while still letting the spec file import and unit-test it.
+//
+// Comparing the resolved origin, rather than enumerating bad prefixes (`//`, `\`, ...), is what
+// actually defeats an open redirect: a prefix denylist misses variants like a leading backslash,
+// which browsers normalise to `//evil.com` for special schemes even though it "starts with /".
+export function _isSameOrigin(target: string, origin: string): boolean {
+	try {
+		return new URL(target, origin).origin === origin;
+	} catch {
+		return false;
+	}
 }
 
 export const actions: Actions = {
-	theme: async ({ request, cookies }) => {
+	theme: async ({ request, cookies, url, locals }) => {
 		const data = await request.formData();
 		const redirectTo = data.get('redirectTo');
 		const next = cookies.get('theme') === 'dark' ? 'light' : 'dark';
 
 		cookies.set('theme', next, { path: '/', maxAge: 60 * 60 * 24 * 365, sameSite: 'lax' });
 
-		redirect(303, isSafeRedirectTarget(redirectTo) ? redirectTo : '/');
+		const fallback = `/${locals.locale}`;
+		const target =
+			typeof redirectTo === 'string' && _isSameOrigin(redirectTo, url.origin)
+				? redirectTo
+				: fallback;
+
+		redirect(303, target);
 	}
 };

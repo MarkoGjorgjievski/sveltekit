@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { page } from '$app/state';
+	import { swapLocale } from './paths';
 
 	interface Props {
 		title: string;
@@ -16,7 +17,7 @@
 	const alternates = $derived(
 		(['en', 'de'] as const).map((locale) => ({
 			locale,
-			href: `${origin}${canonicalPath.replace(/^\/(en|de)/, `/${locale}`)}`
+			href: `${origin}${swapLocale(canonicalPath, locale)}`
 		}))
 	);
 </script>

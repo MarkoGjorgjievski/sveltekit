@@ -2,6 +2,7 @@ import { redirect, type Handle } from '@sveltejs/kit';
 
 const LOCALES = ['en', 'de'] as const;
 const PASS_THROUGH = ['/api', '/sitemap.xml', '/robots.txt', '/favicon', '/_app', '/og'];
+const LANGUAGE_TAG = /^([a-z]{2})(?:-[a-zA-Z]{2,4})?$/i;
 
 export const handle: Handle = async ({ event, resolve }) => {
 	const { pathname } = event.url;
@@ -11,7 +12,15 @@ export const handle: Handle = async ({ event, resolve }) => {
 		event.locals.locale = 'en';
 	} else if (!(LOCALES as readonly string[]).includes(segment)) {
 		const preferred = event.request.headers.get('accept-language')?.startsWith('de') ? 'de' : 'en';
-		redirect(308, `/${preferred}${pathname === '/' ? '' : pathname}${event.url.search}`);
+
+		// A first segment shaped like a language tag is a locale attempt, not a path.
+		// /en-GB/blog and /EN/blog mean /en/blog; prepending would give /en/en-GB/blog.
+		const tag = segment.match(LANGUAGE_TAG);
+		const base = tag?.[1].toLowerCase();
+		const rest = base ? pathname.slice(segment.length + 1) || '/' : pathname;
+		const target = base && (LOCALES as readonly string[]).includes(base) ? base : preferred;
+
+		redirect(308, `/${target}${rest === '/' ? '' : rest}${event.url.search}`);
 	} else {
 		event.locals.locale = segment as 'en' | 'de';
 	}
