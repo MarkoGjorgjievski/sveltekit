@@ -117,6 +117,89 @@ describe('expiry', () => {
 	});
 });
 
+describe('payload validation', () => {
+	// Signs arbitrary, hand-built JSON with the module's own fallback secret (the one `secret()`
+	// returns when SESSION_SECRET/VERCEL_ENV are both unset, which is the state `afterEach` above
+	// resets to) so the signature is genuinely valid and each test below isolates the payload
+	// check rather than the HMAC check — session.ts's own base64url/signing helpers aren't
+	// exported, so this reimplements just enough of them to forge a real token.
+	async function signRawPayload(json: string): Promise<string> {
+		const payloadB64 = Buffer.from(json).toString('base64url');
+		const key = await crypto.subtle.importKey(
+			'raw',
+			new TextEncoder().encode('dev-only-insecure-secret-change-in-production'),
+			{ name: 'HMAC', hash: 'SHA-256' },
+			false,
+			['sign']
+		);
+		const signature = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(payloadB64));
+		const signatureB64 = Buffer.from(signature).toString('base64url');
+		return `${payloadB64}.${signatureB64}`;
+	}
+
+	const validExp = Date.now() + 60 * 60 * 1000;
+
+	it('rejects a validly-signed token with no exp claim', async () => {
+		const token = await signRawPayload(
+			JSON.stringify({
+				id: 'demo_editor',
+				email: 'editor@demo.test',
+				name: 'Demo Editor',
+				role: 'editor'
+			})
+		);
+		expect(await readSession(token)).toBeNull();
+	});
+
+	it('rejects a validly-signed token whose exp is not a number', async () => {
+		const token = await signRawPayload(
+			JSON.stringify({
+				id: 'demo_editor',
+				email: 'editor@demo.test',
+				name: 'Demo Editor',
+				role: 'editor',
+				exp: 'soon'
+			})
+		);
+		expect(await readSession(token)).toBeNull();
+	});
+
+	it('rejects a validly-signed token whose exp overflows to Infinity', async () => {
+		// 1e1000 is syntactically a valid JSON number (digits + exponent), but the IEEE754 double
+		// it parses to overflows to Infinity — exactly the case Number.isFinite() exists to catch,
+		// and one JSON.stringify(Infinity) can't even produce (it serializes Infinity as null).
+		const token = await signRawPayload(
+			'{"id":"demo_editor","email":"editor@demo.test","name":"Demo Editor","role":"editor","exp":1e1000}'
+		);
+		expect(await readSession(token)).toBeNull();
+	});
+
+	it('rejects a validly-signed token with a role outside the known set', async () => {
+		const token = await signRawPayload(
+			JSON.stringify({
+				id: 'demo_editor',
+				email: 'editor@demo.test',
+				name: 'Demo Editor',
+				role: 'superuser',
+				exp: validExp
+			})
+		);
+		expect(await readSession(token)).toBeNull();
+	});
+
+	it('rejects a validly-signed token missing an id', async () => {
+		const token = await signRawPayload(
+			JSON.stringify({
+				email: 'editor@demo.test',
+				name: 'Demo Editor',
+				role: 'editor',
+				exp: validExp
+			})
+		);
+		expect(await readSession(token)).toBeNull();
+	});
+});
+
 describe('can', () => {
 	it('allows admin and editor to update items but not viewer', () => {
 		expect(can({ id: '1', email: 'a', name: 'a', role: 'admin' }, 'item:update')).toBe(true);

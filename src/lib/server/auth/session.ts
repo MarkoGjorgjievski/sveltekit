@@ -1,4 +1,6 @@
+import { z } from 'zod';
 import { env } from '$env/dynamic/private';
+import { ROLES } from '$lib/schemas/user';
 import type { Role, User } from '$lib/schemas/user';
 
 export const SESSION_COOKIE = 'demo_session';
@@ -17,6 +19,18 @@ interface SessionPayload extends SessionUser {
 }
 
 const SESSION_TTL_MS = 8 * 60 * 60 * 1000; // 8 hours, matches the cookie's Max-Age
+
+// What a decoded payload must look like to be trusted as a SessionUser. A small dedicated schema
+// rather than $lib/schemas/user's UserSchema, which also requires `password` (never present here)
+// and isn't otherwise a description of what's embedded in the cookie. `exp` is checked separately
+// below rather than folded in here, since "still in the future" is a runtime comparison, not a
+// shape check.
+const SessionClaimsSchema = z.object({
+	id: z.string().min(1),
+	email: z.email(),
+	name: z.string().min(1),
+	role: z.enum(ROLES)
+});
 
 // Resolved lazily on every call (never cached at module scope) so a missing SESSION_SECRET is
 // only ever a hard failure on an actual Vercel deployment.
@@ -101,12 +115,23 @@ export async function readSession(token: string): Promise<SessionUser | null> {
 		);
 		if (!valid) return null;
 
-		// Verify the signature before parsing (and before trusting `exp`) — an attacker-controlled
-		// payload must never be inspected until its authenticity is established.
-		const session = JSON.parse(new TextDecoder().decode(fromBase64Url(payload))) as SessionPayload;
-		if (Date.now() > session.exp) return null;
+		// Verify the signature before parsing (and before trusting anything inside) — an
+		// attacker-controlled payload must never be inspected until its authenticity is established.
+		// A valid HMAC only proves *we* wrote these bytes at some point; it says nothing about
+		// their shape, so `id`/`email`/`name`/`role` are validated (not asserted) and `exp` is
+		// checked explicitly rather than trusted to be present.
+		const decoded: unknown = JSON.parse(new TextDecoder().decode(fromBase64Url(payload)));
 
-		return session;
+		const claims = SessionClaimsSchema.safeParse(decoded);
+		if (!claims.success) return null;
+
+		// A token without a usable exp is rejected rather than treated as non-expiring:
+		// `Date.now() > undefined` is false, so an absent claim would opt out of expiry.
+		const exp = (decoded as Partial<SessionPayload>).exp;
+		if (typeof exp !== 'number' || !Number.isFinite(exp)) return null;
+		if (Date.now() > exp) return null;
+
+		return claims.data;
 	} catch {
 		return null;
 	}
