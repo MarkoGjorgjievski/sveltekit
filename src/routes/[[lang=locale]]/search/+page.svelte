@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onDestroy } from 'svelte';
-	import { goto } from '$app/navigation';
+	import { beforeNavigate, goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import type { ResolvedPathname } from '$app/types';
 	import { t } from '$lib/i18n/t';
@@ -25,6 +25,12 @@
 	let debounceTimer: ReturnType<typeof setTimeout> | undefined;
 
 	onDestroy(() => clearTimeout(debounceTimer));
+
+	// A pending keystroke timer must not outlive the navigation it was racing. Tag pills are
+	// links and back/forward are in-route, so the component is reused and onDestroy never fires —
+	// without this, a timer armed before the navigation lands afterwards and replaces the entry
+	// the user just moved to with stale query text.
+	beforeNavigate(() => clearTimeout(debounceTimer));
 
 	function buildParams(q: string, tag: string | null, sort: string): URLSearchParams {
 		const trimmed = q.trim();
@@ -74,6 +80,12 @@
 		});
 	}
 
+	// searchPosts ANDs the tag and the text query, so once a text query has already produced zero
+	// results, a tag pill that preserved it would carry the failing query forward and still return
+	// nothing — not a recovery at all. Dropping `q` only in that state is what makes the pill
+	// actually change the outcome; while results exist, preserving `q` is the correct behaviour
+	// (narrowing the current search by tag), so nothing changes for that case.
+	const tagLinkQuery = $derived(data.results.length === 0 ? '' : data.q);
 	const tagLinks = $derived(
 		data.tags.map((entry) => {
 			const active = data.tag === entry.slug;
@@ -81,11 +93,12 @@
 				slug: entry.slug,
 				label: entry.label[locale],
 				active,
-				href: searchHref(buildParams(data.q, active ? null : entry.slug, data.sort))
+				href: searchHref(buildParams(tagLinkQuery, active ? null : entry.slug, data.sort))
 			};
 		})
 	);
-	const allTagsHref = $derived(searchHref(buildParams(data.q, null, data.sort)));
+	const allTagsHref = $derived(searchHref(buildParams(tagLinkQuery, null, data.sort)));
+	const clearQueryHref = $derived(searchHref(buildParams('', data.tag, data.sort)));
 </script>
 
 <Seo
@@ -178,6 +191,12 @@
 	{#if data.results.length === 0}
 		<div class="mt-10 flex flex-col items-start gap-2">
 			<Text as="p" class="text-ink-muted">{t(locale, 'search.noResults')}</Text>
+
+			{#if data.q}
+				<a href={clearQueryHref} class="text-sm font-medium text-accent-ink hover:underline">
+					{t(locale, 'search.clearSearch')}
+				</a>
+			{/if}
 		</div>
 	{:else}
 		{#if data.q}

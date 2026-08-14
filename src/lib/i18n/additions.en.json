@@ -41,6 +41,7 @@
 	"search.queryLabel": "Search posts",
 	"search.sortLabel": "Sort by",
 	"search.allTags": "All",
+	"search.clearSearch": "Clear search",
 	"error.404.title": "Page not found",
 	"error.404.body": "That page does not exist. Try the blog.",
 	"error.generic.title": "Something went wrong",

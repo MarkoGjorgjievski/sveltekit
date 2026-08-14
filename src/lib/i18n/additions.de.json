@@ -41,6 +41,7 @@
 	"search.queryLabel": "Beiträge durchsuchen",
 	"search.sortLabel": "Sortieren nach",
 	"search.allTags": "Alle",
+	"search.clearSearch": "Suche zurücksetzen",
 	"error.404.title": "Seite nicht gefunden",
 	"error.404.body": "Diese Seite existiert nicht. Versuche den Blog.",
 	"error.generic.title": "Etwas ist schiefgelaufen",
