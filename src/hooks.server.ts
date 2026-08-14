@@ -1,4 +1,5 @@
 import { redirect, type Handle } from '@sveltejs/kit';
+import { SESSION_COOKIE, readSession } from '$lib/server/auth/session';
 
 const LOCALES = ['en', 'de'] as const;
 const PASS_THROUGH = ['/api', '/sitemap.xml', '/robots.txt', '/favicon', '/_app', '/og'];
@@ -27,6 +28,18 @@ export const handle: Handle = async ({ event, resolve }) => {
 
 	const cookieTheme = event.cookies.get('theme');
 	event.locals.theme = cookieTheme === 'dark' ? 'dark' : 'light';
+
+	const token = event.cookies.get(SESSION_COOKIE);
+	event.locals.user = token ? await readSession(token) : null;
+
+	// The guard lives here, in `handle`, rather than in a layout `load` — layout loads do not
+	// necessarily re-run on every client-side navigation, so a layout-level guard can be bypassed
+	// by navigating into the dashboard from an already-loaded page. `handle` runs on every request.
+	// Form actions re-check permissions independently with `can()`; this only protects pages.
+	if (event.url.pathname.includes('/dashboard') && !event.locals.user) {
+		const target = encodeURIComponent(event.url.pathname + event.url.search);
+		redirect(303, `/${event.locals.locale}/login?redirectTo=${target}`);
+	}
 
 	return resolve(event, {
 		transformPageChunk: ({ html }) =>

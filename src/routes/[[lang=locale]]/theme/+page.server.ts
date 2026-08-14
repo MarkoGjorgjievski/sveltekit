@@ -1,4 +1,5 @@
 import { redirect } from '@sveltejs/kit';
+import { isSameOrigin } from '$lib/server/url';
 import type { Actions, PageServerLoad } from './$types';
 
 // Only reachable via the form POST below; a stray GET (crawler, typed URL) bounces home.
@@ -8,17 +9,9 @@ export const load: PageServerLoad = ({ locals }) => {
 
 // `_`-prefixed so SvelteKit's route-module export validator allows it alongside `load`/`actions`
 // (it rejects any other named export) while still letting the spec file import and unit-test it.
-//
-// Comparing the resolved origin, rather than enumerating bad prefixes (`//`, `\`, ...), is what
-// actually defeats an open redirect: a prefix denylist misses variants like a leading backslash,
-// which browsers normalise to `//evil.com` for special schemes even though it "starts with /".
-export function _isSameOrigin(target: string, origin: string): boolean {
-	try {
-		return new URL(target, origin).origin === origin;
-	} catch {
-		return false;
-	}
-}
+// The check itself lives in $lib/server/url so the login route can share the same logic instead
+// of duplicating it.
+export const _isSameOrigin = isSameOrigin;
 
 export const actions: Actions = {
 	theme: async ({ request, cookies, url, locals }) => {
@@ -30,7 +23,7 @@ export const actions: Actions = {
 
 		const fallback = `/${locals.locale}`;
 		const target =
-			typeof redirectTo === 'string' && _isSameOrigin(redirectTo, url.origin)
+			typeof redirectTo === 'string' && isSameOrigin(redirectTo, url.origin)
 				? redirectTo
 				: fallback;
 
