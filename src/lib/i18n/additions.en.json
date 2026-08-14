@@ -65,5 +65,6 @@
 	"channel.sms": "SMS",
 	"channel.web": "Web",
 	"channel.social": "Social",
-	"channel.push": "Push"
+	"channel.push": "Push",
+	"combobox.noMatches": "No matches"
 }
