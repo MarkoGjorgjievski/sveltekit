@@ -1,7 +1,11 @@
 name: CI
 on:
-  push: { branches: [main] }
+  push:
   pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   quality:
@@ -26,3 +30,13 @@ jobs:
         with: { node-version-file: '.nvmrc', cache: npm }
       - run: npm ci
       - run: npm run build
+      # A prerendered sitemap/robots bakes url.origin at build time. Without
+      # kit.prerender.origin that is the placeholder host, which would ship
+      # crawler files pointing at a domain that does not exist.
+      - name: Prerendered output must not contain the placeholder origin
+        run: |
+          if grep -rq "sveltekit-prerender" .svelte-kit/output/prerendered; then
+            echo "::error::Prerendered output contains the placeholder origin"
+            grep -rn "sveltekit-prerender" .svelte-kit/output/prerendered | head
+            exit 1
+          fi

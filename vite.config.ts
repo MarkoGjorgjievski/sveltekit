@@ -13,7 +13,11 @@ export default defineConfig({
 				runes: ({ filename }) =>
 					filename.split(/[/\\]/).includes('node_modules') ? undefined : true
 			},
-			adapter: adapter()
+			adapter: adapter(),
+			// Prerendered routes get this as url.origin. Without it SvelteKit uses
+			// http://sveltekit-prerender, which would ship a sitemap full of a hostname
+			// that does not exist. Vercel sets PUBLIC_SITE_URL at build time.
+			prerender: { origin: process.env.PUBLIC_SITE_URL ?? 'http://localhost:5173' }
 		})
 	],
 	test: {
