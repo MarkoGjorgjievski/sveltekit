@@ -1,13 +1,20 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import { resolve } from '$app/paths';
+	import { setContext } from 'svelte';
 	import { t } from '$lib/i18n/t';
 	import { swapLocale } from '$lib/seo/paths';
 	import Button from '$lib/ui/Button.svelte';
 	import Container from '$lib/ui/Container.svelte';
+	import ToastRegion from '$lib/ui/ToastRegion.svelte';
+	import { TOAST_KEY, createToastQueue } from '$lib/ui/toast.svelte';
 	import type { LayoutProps } from './$types';
 
 	let { data, children }: LayoutProps = $props();
+
+	// Context rather than a module-level store: a module-level singleton would be shared across
+	// requests during SSR, leaking one user's toast into another user's response.
+	setContext(TOAST_KEY, createToastQueue());
 
 	const locale = $derived(data.locale);
 	const otherLocale = $derived(locale === 'en' ? 'de' : 'en');
@@ -84,3 +91,5 @@
 		{t(locale, 'footer.copy')}
 	</Container>
 </footer>
+
+<ToastRegion {locale} />

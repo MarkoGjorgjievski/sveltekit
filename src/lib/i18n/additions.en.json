@@ -1,5 +1,6 @@
 {
 	"a11y.skipToContent": "Skip to content",
+	"toast.dismiss": "Dismiss",
 	"nav.toggleTheme": "Toggle theme",
 	"home.features.item1.title": "Prerendered by default",
 	"home.features.item1.description": "Every route ships as static HTML, so your first paint never waits on JavaScript.",

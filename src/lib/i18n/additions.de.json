@@ -1,5 +1,6 @@
 {
 	"a11y.skipToContent": "Zum Inhalt springen",
+	"toast.dismiss": "Schließen",
 	"nav.toggleTheme": "Design umschalten",
 	"home.features.item1.title": "Vorgerendert von Haus aus",
 	"home.features.item1.description": "Jede Route wird als statisches HTML ausgeliefert – dein First Paint wartet nie auf JavaScript.",
