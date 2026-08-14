@@ -5,6 +5,14 @@ const LOCALES = ['en', 'de'] as const;
 const PASS_THROUGH = ['/api', '/sitemap.xml', '/robots.txt', '/favicon', '/_app', '/og'];
 const LANGUAGE_TAG = /^([a-z]{2})(?:-[a-zA-Z]{2,4})?$/i;
 
+// Exported so it can be unit-tested directly rather than only through a full `handle` request —
+// `pathname.includes('/dashboard')` would also match `/en/blog/dashboard` (a plausible post slug)
+// and `/en/dashboards`; matching the root or a `/`-bounded child is the actual route boundary.
+export function isDashboardPath(pathname: string, locale: string): boolean {
+	const root = `/${locale}/dashboard`;
+	return pathname === root || pathname.startsWith(`${root}/`);
+}
+
 export const handle: Handle = async ({ event, resolve }) => {
 	const { pathname } = event.url;
 	const segment = pathname.split('/')[1];
@@ -36,7 +44,7 @@ export const handle: Handle = async ({ event, resolve }) => {
 	// necessarily re-run on every client-side navigation, so a layout-level guard can be bypassed
 	// by navigating into the dashboard from an already-loaded page. `handle` runs on every request.
 	// Form actions re-check permissions independently with `can()`; this only protects pages.
-	if (event.url.pathname.includes('/dashboard') && !event.locals.user) {
+	if (isDashboardPath(event.url.pathname, event.locals.locale) && !event.locals.user) {
 		const target = encodeURIComponent(event.url.pathname + event.url.search);
 		redirect(303, `/${event.locals.locale}/login?redirectTo=${target}`);
 	}

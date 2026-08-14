@@ -59,7 +59,10 @@ export const actions: Actions = {
 			path: '/',
 			httpOnly: true,
 			sameSite: 'lax',
-			secure: process.env.NODE_ENV === 'production',
+			// Derived from the actual request protocol, not NODE_ENV — `npm run preview` (which
+			// Task 24's Lighthouse run drives) sets NODE_ENV=production while serving plain HTTP,
+			// and a Secure cookie over HTTP is one the browser silently refuses to send back.
+			secure: url.protocol === 'https:',
 			maxAge: 60 * 60 * 8
 		});
 

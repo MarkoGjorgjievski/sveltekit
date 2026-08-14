@@ -1,6 +1,18 @@
-import { describe, expect, it } from 'vitest';
-import { createSession, readSession } from './session';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { can } from './permissions';
+
+// $env/dynamic/private is mocked (rather than mutating process.env) so `SESSION_SECRET` and
+// `VERCEL_ENV` can be flipped per test without depending on how SvelteKit's dev-vs-build env
+// module actually snapshots process.env. session.ts reads `env` fresh on every call (no
+// top-level caching), so mutating properties on this shared object between tests is enough.
+const mockEnv = vi.hoisted(() => ({
+	SESSION_SECRET: undefined as string | undefined,
+	VERCEL_ENV: undefined as string | undefined
+}));
+
+vi.mock('$env/dynamic/private', () => ({ env: mockEnv }));
+
+const { createSession, readSession } = await import('./session');
 
 const user = {
 	id: 'demo_editor',
@@ -9,6 +21,12 @@ const user = {
 	role: 'editor' as const,
 	password: 'demo1234'
 };
+
+afterEach(() => {
+	mockEnv.SESSION_SECRET = undefined;
+	mockEnv.VERCEL_ENV = undefined;
+	vi.useRealTimers();
+});
 
 describe('session', () => {
 	it('round-trips a signed token', async () => {
@@ -52,6 +70,50 @@ describe('session', () => {
 		const signature = Buffer.from(forgedSignature).toString('base64url');
 
 		expect(await readSession(`${payload}.${signature}`)).toBeNull();
+	});
+});
+
+describe('secret resolution', () => {
+	it('throws when deployed to Vercel production without SESSION_SECRET set', async () => {
+		mockEnv.VERCEL_ENV = 'production';
+		mockEnv.SESSION_SECRET = undefined;
+
+		await expect(createSession(user)).rejects.toThrow(/SESSION_SECRET/);
+	});
+
+	it('does not throw outside of Vercel production, even without SESSION_SECRET', async () => {
+		mockEnv.VERCEL_ENV = undefined;
+		mockEnv.SESSION_SECRET = undefined;
+
+		await expect(createSession(user)).resolves.toEqual(expect.any(String));
+	});
+
+	it('uses SESSION_SECRET when it is set, even in Vercel production', async () => {
+		mockEnv.VERCEL_ENV = 'production';
+		mockEnv.SESSION_SECRET = 'a-real-production-secret';
+
+		await expect(createSession(user)).resolves.toEqual(expect.any(String));
+	});
+});
+
+describe('expiry', () => {
+	it('rejects a token past its 8-hour expiry even with a valid signature', async () => {
+		vi.useFakeTimers();
+		vi.setSystemTime(new Date('2026-01-01T00:00:00Z'));
+		const token = await createSession(user);
+
+		vi.setSystemTime(new Date('2026-01-01T08:00:01Z'));
+		expect(await readSession(token)).toBeNull();
+	});
+
+	it('accepts a token still inside its 8-hour window', async () => {
+		vi.useFakeTimers();
+		vi.setSystemTime(new Date('2026-01-01T00:00:00Z'));
+		const token = await createSession(user);
+
+		vi.setSystemTime(new Date('2026-01-01T07:59:59Z'));
+		const session = await readSession(token);
+		expect(session?.email).toBe('editor@demo.test');
 	});
 });
 
