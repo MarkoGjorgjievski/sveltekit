@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { allSlugs, POSTS_PER_PAGE } from '$lib/server/data/posts.repo';
 import { posts } from '$lib/server/data/fixtures';
-import { GET } from './+server';
+import { _buildEntries, GET } from './+server';
+import type { Post } from '$lib/schemas/post';
 import type { RequestEvent } from '@sveltejs/kit';
 
 type SitemapEvent = Parameters<typeof GET>[0];
@@ -73,10 +74,13 @@ describe('GET /sitemap.xml', () => {
 		expect(matches).toHaveLength(50);
 	});
 
-	it('uses the plural sitemaps.org namespace', async () => {
+	it('uses the plural sitemaps.org namespace and declares the xhtml namespace', async () => {
 		const response = await GET(buildEvent());
 		const body = await response.text();
 		expect(body).toContain('xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"');
+		// Dropping this while still emitting <xhtml:link> elements would be invalid XML — the
+		// prefix would be undeclared even though every other assertion here still passes.
+		expect(body).toContain('xmlns:xhtml="http://www.w3.org/1999/xhtml"');
 	});
 
 	it('gives every <loc> an absolute, locale-prefixed URL', async () => {
@@ -124,5 +128,38 @@ describe('GET /sitemap.xml', () => {
 			expect(block).toContain('hreflang="en"');
 			expect(block).toContain('hreflang="de"');
 		}
+	});
+});
+
+// PostSchema.slug is regex-constrained (no '&' can occur in a real fixture entry today), but
+// that constraint lives in posts.ts and nothing ties it to this route — a future slug pattern
+// change, or any other future path source, could otherwise ship invalid XML. _buildEntries is
+// exported specifically so this can be exercised without touching the real fixture.
+function makeStubPost(overrides: Partial<Post> = {}): Post {
+	return {
+		id: 'post_stub',
+		slug: 'a&b',
+		translations: {
+			en: { title: 'Stub', excerpt: 'Stub excerpt', body: 'Stub body' },
+			de: { title: 'Stub', excerpt: 'Stub Auszug', body: 'Stub Text' }
+		},
+		tags: [],
+		author: { id: 'author_stub', name: 'Stub Author', avatarColor: '#000000' },
+		publishedAt: '2026-01-01T00:00:00.000Z',
+		readingTimeMinutes: 1,
+		coverColor: '#000000',
+		...overrides
+	};
+}
+
+describe('_buildEntries XML escaping', () => {
+	it('escapes an unsafe character in <loc> and every xhtml:link href, leaving no bare "&"', () => {
+		const stubPost = makeStubPost({ slug: 'a&b' });
+		const body = _buildEntries(origin, ['/blog/a&b'], [stubPost]);
+
+		expect(body).toContain(`<loc>${origin}/en/blog/a&amp;b</loc>`);
+		expect(body).toContain(`href="${origin}/de/blog/a&amp;b"`);
+		// The escaped form never contains the raw, contiguous "a&b" sequence a bug would produce.
+		expect(body).not.toContain('a&b');
 	});
 });
