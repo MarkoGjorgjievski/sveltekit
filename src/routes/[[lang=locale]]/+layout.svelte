@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import { resolve } from '$app/paths';
+	import { browser } from '$app/environment';
 	import { setContext } from 'svelte';
 	import { t } from '$lib/i18n/t';
 	import { swapLocale } from '$lib/seo/paths';
@@ -20,13 +21,16 @@
 	const otherLocale = $derived(locale === 'en' ? 'de' : 'en');
 	const home = $derived(resolve('/[[lang=locale]]', { lang: locale }));
 
+	// A prerendered page cannot read url.search. The query only matters once hydrated —
+	// the theme toggle and locale switch should return the user to the exact URL they
+	// were on — so consult it in the browser and fall back to the path on the server.
+	const search = $derived(browser ? page.url.search : '');
+
 	// Where the theme-toggle action should send the browser back to after it flips the cookie.
-	const redirectTo = $derived(page.url.pathname + page.url.search);
+	const redirectTo = $derived(page.url.pathname + search);
 
 	// Same page, other locale — swap only the leading /en or /de segment.
-	const otherLocalePath = $derived(
-		`${swapLocale(page.url.pathname, otherLocale)}${page.url.search}`
-	);
+	const otherLocalePath = $derived(`${swapLocale(page.url.pathname, otherLocale)}${search}`);
 
 	// Home, Blog, and Search all resolve through $app/paths now that every route id exists.
 	const navLinks = $derived([

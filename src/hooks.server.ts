@@ -1,4 +1,5 @@
 import { redirect, type Handle } from '@sveltejs/kit';
+import { building } from '$app/environment';
 import { SESSION_COOKIE, readSession } from '$lib/server/auth/session';
 
 const LOCALES = ['en', 'de'] as const;
@@ -29,7 +30,11 @@ export const handle: Handle = async ({ event, resolve }) => {
 		const rest = base ? pathname.slice(segment.length + 1) || '/' : pathname;
 		const target = base && (LOCALES as readonly string[]).includes(base) ? base : preferred;
 
-		redirect(308, `/${target}${rest === '/' ? '' : rest}${event.url.search}`);
+		// url.search cannot be read while prerendering (the root `/` and bare `/blog` both match
+		// the optional [[lang=locale]] group with no locale segment, so the crawler visits them
+		// here too). There is no real query during a build, so fall back to the path alone.
+		const search = building ? '' : event.url.search;
+		redirect(308, `/${target}${rest === '/' ? '' : rest}${search}`);
 	} else {
 		event.locals.locale = segment as 'en' | 'de';
 	}
@@ -45,7 +50,7 @@ export const handle: Handle = async ({ event, resolve }) => {
 	// by navigating into the dashboard from an already-loaded page. `handle` runs on every request.
 	// Form actions re-check permissions independently with `can()`; this only protects pages.
 	if (isDashboardPath(event.url.pathname, event.locals.locale) && !event.locals.user) {
-		const target = encodeURIComponent(event.url.pathname + event.url.search);
+		const target = encodeURIComponent(event.url.pathname + (building ? '' : event.url.search));
 		redirect(303, `/${event.locals.locale}/login?redirectTo=${target}`);
 	}
 
