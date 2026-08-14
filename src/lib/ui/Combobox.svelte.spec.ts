@@ -48,7 +48,13 @@ describe('Combobox', () => {
 		expect(screen.container.querySelectorAll('[role="option"]').length).toBe(1);
 	});
 
-	it('closes on Escape and returns focus to the input', async () => {
+	// The Escape branch of onkeydown lives on the input's own keydown handler, so it can only ever
+	// fire while the input already has focus — there is no code path in this component that lets
+	// Escape reach that handler from a blurred state. closeList(true) still passes `returnFocus`
+	// (cheap, and it documents intent for anyone extending this later), but "returns focus" is not
+	// something a test can actually demonstrate here; the real, testable invariant is that closing
+	// via Escape never blurs the input as a side effect.
+	it('closes on Escape and leaves focus on the input', async () => {
 		const screen = setup();
 		const input = screen.getByRole('combobox', { name: 'Status' });
 		await input.click();
@@ -106,14 +112,43 @@ describe('Combobox', () => {
 		await expect.element(input).toHaveAttribute('aria-activedescendant', 'status-option-active');
 	});
 
-	it('never leaves aria-activedescendant pointing at an option removed by filtering', async () => {
+	// Five options collapse to a different, smaller set on every keystroke. An activeIndex that
+	// survives the filter unchanged can silently point at whichever option now happens to sit at
+	// that position — not the one the user actually arrowed to. The fix is to re-anchor to the
+	// first visible result on every filter change, so aria-activedescendant (and Enter) can never
+	// act on an option the user never highlighted.
+	it('resets the active option to the first result when a filter changes it out from under the user', async () => {
 		const screen = setup();
 		const input = screen.getByRole('combobox', { name: 'Status' });
 		await input.click();
 		await userEvent.keyboard('{ArrowUp}');
 		await expect.element(input).toHaveAttribute('aria-activedescendant', 'status-option-draft');
 
-		await userEvent.keyboard('arch');
+		// "d" matches Archived and Draft, in that order — Draft (previously active) is now second.
+		await userEvent.keyboard('d');
+		await expect.element(input).toHaveAttribute('aria-activedescendant', 'status-option-archived');
+
+		await userEvent.keyboard('{Enter}');
+		await expect
+			.element(screen.getByRole('option', { name: /Archived/ }))
+			.toHaveAttribute('aria-selected', 'true');
+		await expect
+			.element(screen.getByRole('option', { name: /Draft/ }))
+			.toHaveAttribute('aria-selected', 'false');
+	});
+
+	// The reset above covers filtering via typing. `options` shrinking from the parent without any
+	// keystroke (a prop update, not user input) takes a different code path — oninput never fires —
+	// so the bounds guard on activeId is what has to catch it instead.
+	it('keeps aria-activedescendant valid when the options prop shrinks without a keypress', async () => {
+		const screen = setup();
+		const input = screen.getByRole('combobox', { name: 'Status' });
+		await input.click();
+		await userEvent.keyboard('{ArrowUp}');
+		await expect.element(input).toHaveAttribute('aria-activedescendant', 'status-option-draft');
+
+		await screen.rerender({ options: [options[0]] });
+
 		const activeDescendant = await input.element().getAttribute('aria-activedescendant');
 		if (activeDescendant === null) {
 			expect(activeDescendant).toBeNull();
@@ -178,13 +213,22 @@ describe('Combobox', () => {
 		expect(screen.container.querySelectorAll('[role="option"]').length).toBe(0);
 	});
 
-	it('marks the listbox as multiselectable and labelled', async () => {
+	it('labels the listbox via aria-labelledby pointing at the input label, and marks it multiselectable', async () => {
 		const screen = setup();
 		const input = screen.getByRole('combobox', { name: 'Status' });
 		await input.click();
-		await userEvent.keyboard('{ArrowDown}');
-		const listbox = screen.getByRole('listbox', { name: 'Status' });
-		await expect.element(listbox).toHaveAttribute('aria-multiselectable', 'true');
+
+		const listboxId = await input.element().getAttribute('aria-controls');
+		expect(listboxId).not.toBeNull();
+		const listboxEl = listboxId ? document.getElementById(listboxId) : null;
+		expect(listboxEl).not.toBeNull();
+		expect(listboxEl?.getAttribute('aria-multiselectable')).toBe('true');
+
+		const labelledBy = listboxEl?.getAttribute('aria-labelledby');
+		expect(labelledBy).not.toBeNull();
+		const labelEl = labelledBy ? document.getElementById(labelledBy) : null;
+		expect(labelEl?.tagName).toBe('LABEL');
+		expect(labelEl?.textContent).toBe('Status');
 	});
 
 	it('exposes aria-expanded as the literal strings "false" and "true"', async () => {
@@ -194,5 +238,52 @@ describe('Combobox', () => {
 		await input.click();
 		await userEvent.keyboard('{ArrowDown}');
 		expect(await input.element().getAttribute('aria-expanded')).toBe('true');
+	});
+
+	// Finding 3: the listbox is now always in the DOM (hidden, not conditionally rendered), so
+	// aria-controls always points at a real element — including in the default, never-opened state
+	// an axe pass over a page full of closed comboboxes would otherwise flag.
+	it('keeps aria-controls pointing at a real element even when never opened', async () => {
+		const screen = setup();
+		const input = screen.getByRole('combobox', { name: 'Status' });
+		const controls = await input.element().getAttribute('aria-controls');
+		expect(controls).not.toBeNull();
+		expect(controls ? document.getElementById(controls) : null).not.toBeNull();
+	});
+
+	it('does not expose its options via role queries while closed', async () => {
+		const screen = setup();
+		expect(screen.getByRole('option').elements().length).toBe(0);
+	});
+
+	it('opens on a plain click on the input, not only on ArrowDown or typing', async () => {
+		const screen = setup();
+		const input = screen.getByRole('combobox', { name: 'Status' });
+		await input.click();
+		await expect.element(input).toHaveAttribute('aria-expanded', 'true');
+	});
+
+	it('exposes aria-autocomplete="list" — typed text filters rather than inserts', async () => {
+		const screen = setup();
+		const input = screen.getByRole('combobox', { name: 'Status' });
+		await expect.element(input).toHaveAttribute('aria-autocomplete', 'list');
+	});
+
+	// Finding 1: filtering to zero results must not be silent. The region is always in the DOM
+	// (never conditionally rendered) so assistive tech has already registered it before there is
+	// anything to announce; only its text changes.
+	it('announces the result count through a persistent live region', async () => {
+		const screen = setup();
+		const input = screen.getByRole('combobox', { name: 'Status' });
+		const status = screen.container.querySelector('[role="status"]');
+		expect(status).not.toBeNull();
+		expect(status?.textContent).toBe('');
+
+		await input.click();
+		await userEvent.keyboard('{ArrowDown}');
+		await expect.element(screen.getByText('3 options available')).toBeInTheDocument();
+
+		await userEvent.keyboard('zzz');
+		await expect.element(screen.getByText('0 options available')).toBeInTheDocument();
 	});
 });

@@ -59,4 +59,18 @@
 		outline: 2px solid var(--color-accent);
 		outline-offset: 2px;
 	}
+	/* Visually hidden but still present for assistive tech — the standard clip-rect pattern.
+	   Used for live regions that must exist in the DOM before their content changes, since a
+	   region injected at the same moment as its first announcement is frequently missed. */
+	.sr-only {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		padding: 0;
+		margin: -1px;
+		overflow: hidden;
+		clip: rect(0, 0, 0, 0);
+		white-space: nowrap;
+		border-width: 0;
+	}
 }

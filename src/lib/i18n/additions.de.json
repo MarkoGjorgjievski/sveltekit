@@ -66,5 +66,6 @@
 	"channel.web": "Web",
 	"channel.social": "Social",
 	"channel.push": "Push",
-	"combobox.noMatches": "Keine Treffer"
+	"combobox.noMatches": "Keine Treffer",
+	"combobox.resultCount": "{count} Optionen verfügbar"
 }
