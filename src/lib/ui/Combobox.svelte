@@ -181,11 +181,14 @@
 						class:bg-accent-surface={index === activeIndex}
 						class:text-accent-ink={index === activeIndex}
 						onpointerdown={(event) => {
-							// Click fires after blur, which would close the list (via the
-							// outside-pointerdown handler above, or a future blur handler) before the
-							// selection ever registered. pointerdown fires first, and preventDefault
-							// here stops the browser's default focus/blur dance so the input never
-							// loses focus in the first place.
+							// This <li> is not part of the input's focusable subtree, so the browser's
+							// default mousedown action would blur the input the instant the pointer goes
+							// down on it — breaking "focus never leaves the input" and taking
+							// aria-activedescendant/typeahead down with it. click fires after that
+							// blur has already happened, too late for a click-time preventDefault to
+							// stop it. Handling pointerdown, and preventing its default focus/blur
+							// behaviour before mouseup/click ever run, is what keeps focus on the input
+							// through every selection.
 							event.preventDefault();
 							toggle(option.value);
 						}}

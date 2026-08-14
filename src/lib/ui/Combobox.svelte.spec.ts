@@ -157,6 +157,18 @@ describe('Combobox', () => {
 			.toHaveAttribute('aria-selected', 'false');
 	});
 
+	it('keeps focus on the input when pointing at an option to select it', async () => {
+		const screen = setup();
+		const input = screen.getByRole('combobox', { name: 'Status' });
+		await input.click();
+		await userEvent.keyboard('{ArrowDown}');
+		await userEvent.click(screen.getByRole('option', { name: /Active/ }));
+		await expect
+			.element(screen.getByRole('option', { name: /Active/ }))
+			.toHaveAttribute('aria-selected', 'true');
+		await expect.element(input).toHaveFocus();
+	});
+
 	it('renders the empty state without exposing it as an option', async () => {
 		const screen = setup();
 		const input = screen.getByRole('combobox', { name: 'Status' });
