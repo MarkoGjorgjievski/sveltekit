@@ -6,11 +6,21 @@
 	import Badge from '$lib/ui/Badge.svelte';
 	import ItemsTableSkeleton from './ItemsTableSkeleton.svelte';
 	import ErrorRegion from './ErrorRegion.svelte';
+	import { reservedResultsHeightPx } from './table-metrics';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
 
 	const locale = $derived(data.locale);
+
+	// The real row count is unknowable until `data.result` resolves — that's inherent to
+	// streaming, so this doesn't try to predict it. Instead it reserves the skeleton's full
+	// footprint (header + perPage rows + the summary line) for the whole lifetime of this region,
+	// not just while loading. A filtered/empty result and the last page of a total that doesn't
+	// divide evenly by perPage both resolve to visibly shorter content than the skeleton
+	// reserved; without this floor the page collapses the instant streaming finishes, which is
+	// the exact layout shift streaming was meant to prevent.
+	const reservedHeightPx = $derived(reservedResultsHeightPx(data.query.perPage));
 
 	// Lifecycle order, not severity — a neutral tone for the early/inactive states keeps "active"
 	// the one status that reads as attention-grabbing at a glance.
@@ -31,7 +41,7 @@
 <Container class="py-10">
 	<h1 class="text-xl font-semibold text-ink">{t(locale, 'dashboard.items.title')}</h1>
 
-	<div class="mt-6">
+	<div class="mt-6" style="min-height: {reservedHeightPx}px">
 		{#await data.result}
 			<!-- The skeleton itself is aria-hidden (pure shape, no information), so this is the
 			     only signal screen-reader users get that data is on the way. -->
