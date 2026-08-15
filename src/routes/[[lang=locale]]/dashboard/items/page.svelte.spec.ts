@@ -6,6 +6,7 @@ import type { ItemPage } from '$lib/server/data/items.repo';
 import Page from './+page.svelte';
 import type { PageProps } from './$types';
 import type { ItemsResult } from './+page.server';
+import { reservedResultsHeightPx } from './table-metrics';
 
 // $app/navigation is mocked so ErrorRegion's retry button can call invalidate() without
 // SvelteKit attempting a real client-side navigation with no router mounted.
@@ -110,5 +111,31 @@ describe('dashboard/items page', () => {
 		await expect.element(screen.getByText('Loading…')).toBeInTheDocument();
 		const skeletonTable = screen.container.querySelector('table[aria-hidden="true"]');
 		expect(skeletonTable).not.toBeNull();
+	});
+
+	it("reserves the skeleton's full height on the results region, even for a short resolved state", async () => {
+		// perPage is chosen distinct from any other default used in this file so this assertion
+		// can't coincidentally pass against a hardcoded number — it must go through the real
+		// stubbed query.
+		const perPage = 10;
+		const result: ItemsResult = {
+			ok: true,
+			page: makePage({ rows: [], total: 0, pageCount: 0 }),
+			health: { dropped: 0 }
+		};
+		const screen = render(
+			Page,
+			props(Promise.resolve(result), { query: { ...DEFAULT_QUERY, perPage } })
+		);
+
+		// Wait for the short (empty) resolved state to actually render before measuring — if the
+		// reservation were missing, this is exactly the moment the container would collapse.
+		await expect.element(screen.getByText('No campaigns yet.')).toBeInTheDocument();
+
+		const region = screen.container.querySelector<HTMLElement>(
+			'[data-testid="items-results-region"]'
+		);
+		expect(region).not.toBeNull();
+		expect(getComputedStyle(region!).minHeight).toBe(`${reservedResultsHeightPx(perPage)}px`);
 	});
 });

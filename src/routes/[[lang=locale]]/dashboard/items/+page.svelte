@@ -41,7 +41,7 @@
 <Container class="py-10">
 	<h1 class="text-xl font-semibold text-ink">{t(locale, 'dashboard.items.title')}</h1>
 
-	<div class="mt-6" style="min-height: {reservedHeightPx}px">
+	<div class="mt-6" style="min-height: {reservedHeightPx}px" data-testid="items-results-region">
 		{#await data.result}
 			<!-- The skeleton itself is aria-hidden (pure shape, no information), so this is the
 			     only signal screen-reader users get that data is on the way. -->
