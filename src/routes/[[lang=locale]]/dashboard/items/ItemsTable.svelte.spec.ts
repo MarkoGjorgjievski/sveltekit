@@ -5,6 +5,12 @@ import type { Item } from '$lib/schemas/item';
 import type { ItemPage } from '$lib/server/data/items.repo';
 import type { ItemQuery } from '$lib/url/query-codec';
 import ItemsTable from './ItemsTable.svelte';
+import { ROW_HEIGHT_PX } from './table-metrics';
+// Needed for the height-parity test below — a component rendered standalone via `render()` gets
+// no global stylesheet otherwise (see ItemsTableSkeleton.svelte.spec.ts's identical import for
+// the full explanation), so `appearance-none`/`p-0`/`border-0` on the status `<select>` would
+// never actually apply and the test would measure raw UA select chrome instead of real layout.
+import '../../../layout.css';
 
 function makeItem(overrides: Partial<Item> = {}): Item {
 	return {
@@ -155,5 +161,34 @@ describe('ItemsTable — keyboard parity', () => {
 		for (const element of interactive) {
 			expect(element.getAttribute('tabindex')).not.toBe('-1');
 		}
+	});
+});
+
+// The status column used to render a static Badge; it now renders a real <select> in its place.
+// A naive inline <select> carries its own UA border/padding/min-height (measured directly: 27px
+// tall at this project's design tokens, versus the 20px a plain text-sm line occupies) — dropped
+// into ROW_HEIGHT_PX's budget unmodified, that would silently grow every row and desync the real
+// table from ItemsTableSkeleton's pinned placeholder height, reintroducing the exact streaming
+// layout shift Stage 4 built the skeleton to prevent. StatusCell strips that chrome
+// (`appearance-none`, zero border, zero padding) specifically so the control is flush with the
+// text it replaced.
+describe('ItemsTable — status select height parity', () => {
+	it("renders the status select at the same content height as a plain text-sm line, so it doesn't grow the row beyond ROW_HEIGHT_PX", async () => {
+		const rows = [makeItem()];
+		const screen = setup({}, { rows });
+
+		const select = screen.container.querySelector<HTMLSelectElement>('tbody select');
+		expect(select).not.toBeNull();
+
+		const selectHeight = select?.getBoundingClientRect().height ?? -1;
+		// 20px is text-sm's own line-height (1.25rem) — the same figure ROW_HEIGHT_PX's own comment
+		// (imported above so this test fails loudly if that budget is ever revised without checking
+		// this control still fits it) derives its 45px from (24px padding + 20px line-height + 1px
+		// border). A `select` that stays at this height contributes nothing beyond what the Badge
+		// it replaced did. Without `../../../layout.css` imported above, a stripped-down select
+		// falls back to raw UA sizing well outside this 19–21px band — verified manually against
+		// this exact markup before that import was added.
+		expect(selectHeight).toBeGreaterThanOrEqual(19);
+		expect(selectHeight).toBeLessThanOrEqual(ROW_HEIGHT_PX - 24);
 	});
 });

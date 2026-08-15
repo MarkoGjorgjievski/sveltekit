@@ -1,32 +1,33 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
 	import type { Locale } from '$lib/schemas/post';
-	import type { ItemStatus } from '$lib/schemas/item';
 	import type { SortKey } from '$lib/schemas/query';
 	import { toSearchParams, type ItemQuery } from '$lib/url/query-codec';
 	import type { ItemPage } from '$lib/server/data/items.repo';
 	import type { MessageKey } from '$lib/i18n/t';
 	import { t } from '$lib/i18n/t';
 	import { formatCurrency, formatDate, formatPercent } from '$lib/i18n/format';
-	import Badge from '$lib/ui/Badge.svelte';
 	import Pager from './Pager.svelte';
+	import StatusCell from './StatusCell.svelte';
+	import { createOptimisticStatus } from './optimistic.svelte';
 
 	interface Props {
 		page: ItemPage;
 		query: ItemQuery;
 		locale: Locale;
-		// Not read yet — the optimistic inline status editor is built in a later task and will read
-		// this same prop when it renders in place of the static Badge below. Kept in this
-		// component's interface now (rather than added when that task lands) because it is part of
-		// this table's stated public contract. There is no honest, non-decorative use for it in
-		// this task's markup, so it is destructured but deliberately left unread, with the lint
-		// rule that would otherwise flag it disabled on this one line, rather than surfaced as a
-		// dead attribute nothing consumes.
+		// Read by the status column below, which disables its <select> for a viewer instead of
+		// hiding it — the control stays visible (and its disabled state inspectable) so the
+		// authorization boundary is something a user can see, not just something the server
+		// enforces silently.
 		canEdit: boolean;
 	}
 
-	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	let { page, query, locale, canEdit }: Props = $props();
+
+	// One store per table instance, shared across every row's StatusCell — overrides are keyed by
+	// item id, so rows never collide, and the instance survives sort/filter re-renders of this same
+	// component rather than resetting mid-edit.
+	const optimistic = createOptimisticStatus();
 
 	const COLUMNS: { key: SortKey; label: MessageKey; numeric: boolean }[] = [
 		{ key: 'name', label: 'dashboard.items.column.name', numeric: false },
@@ -58,17 +59,6 @@
 		if (query.sort !== key) return 'none';
 		return query.dir === 'asc' ? 'ascending' : 'descending';
 	}
-
-	// Lifecycle order, not severity — a neutral tone for the early/inactive states keeps "active"
-	// the one status that reads as attention-grabbing at a glance.
-	const STATUS_TONE = {
-		draft: 'neutral',
-		scheduled: 'accent',
-		active: 'success',
-		paused: 'warning',
-		completed: 'neutral',
-		archived: 'neutral'
-	} as const satisfies Record<ItemStatus, 'neutral' | 'accent' | 'success' | 'warning'>;
 
 	const hasActiveFilters = $derived(
 		query.q !== '' || query.status.length > 0 || query.channel.length > 0 || query.tags.length > 0
@@ -134,7 +124,7 @@
 					<tr class="border-b border-border">
 						<th scope="row" class={`${cellClass} text-left font-normal`}>{item.name}</th>
 						<td class={cellClass}>
-							<Badge tone={STATUS_TONE[item.status]}>{t(locale, `status.${item.status}`)}</Badge>
+							<StatusCell {item} {locale} {canEdit} {optimistic} />
 						</td>
 						<td class={cellClass}>{t(locale, `channel.${item.channel}`)}</td>
 						<td class={cellClass}>{item.owner.name}</td>

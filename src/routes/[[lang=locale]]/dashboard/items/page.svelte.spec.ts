@@ -11,9 +11,13 @@ import { reservedResultsHeightPx } from './table-metrics';
 
 // $app/navigation is mocked so ErrorRegion's retry button can call invalidate(), and FilterBar's
 // debounced input can call goto()/beforeNavigate(), without SvelteKit attempting a real
-// client-side navigation with no router mounted.
+// client-side navigation with no router mounted. invalidateAll is stubbed too, not because
+// anything here calls it (StatusCell deliberately never does — see optimistic.svelte.ts), but
+// because $app/forms's `enhance` imports it internally, and a full module mock without it throws
+// a missing-export error the moment `use:enhance` is evaluated.
 vi.mock('$app/navigation', () => ({
 	invalidate: vi.fn(),
+	invalidateAll: vi.fn(),
 	goto: vi.fn(),
 	beforeNavigate: vi.fn()
 }));
@@ -61,7 +65,7 @@ function props(
 ): PageProps {
 	return {
 		params: {},
-		form: undefined,
+		form: null,
 		data: {
 			// theme and user come from the root and dashboard layouts respectively; this route's
 			// own load doesn't touch them, but PageData still merges them in from the parent chain.
@@ -165,7 +169,7 @@ describe('dashboard/items page', () => {
 	// lives inside ItemsTable, so this is the one place FilterBar, the sort headers, and the pager
 	// are ever assembled together the way a real user actually encounters them. A tab walk scoped
 	// to any single component would skip the other two.
-	it('reaches every sort header, every facet combobox, the pager links, and the clear-filters link by Tab alone', async () => {
+	it('reaches every sort header, every facet combobox, each row status select, the pager links, and the clear-filters link by Tab alone', async () => {
 		const rows = [
 			makeItem({ id: 'item_1', name: 'Spring campaign' }),
 			makeItem({ id: 'item_2', name: 'Autumn campaign' })
@@ -195,8 +199,11 @@ describe('dashboard/items page', () => {
 		await searchInput.click();
 		await expect.element(searchInput).toHaveFocus();
 
-		// FilterBar: three comboboxes, perPage select, submit, clear-filters link.
-		await expectFocus(screen.getByRole('combobox', { name: 'Status' }));
+		// FilterBar: three comboboxes, perPage select, submit, clear-filters link. `exact: true` on
+		// the Status combobox specifically, because Playwright's role-name matching is substring
+		// and case-insensitive by default — without it, "Status" also matches every row's "Change
+		// status for {name}" select below, which is itself the point of that per-row name.
+		await expectFocus(screen.getByRole('combobox', { name: 'Status', exact: true }));
 		await expectFocus(screen.getByRole('combobox', { name: 'Channel' }));
 		await expectFocus(screen.getByRole('combobox', { name: 'Tags' }));
 		await expectFocus(screen.getByLabelText('Rows per page'));
@@ -217,8 +224,15 @@ describe('dashboard/items page', () => {
 			await expectFocus(screen.getByRole('link', { name }));
 		}
 
+		// Each row's status select, in row order — its accessible name comes from the sr-only
+		// label built with the item's own name, which is also what proves the two rows' selects are
+		// individually addressable rather than announcing identically.
+		await expectFocus(screen.getByRole('combobox', { name: 'Change status for Spring campaign' }));
+		await expectFocus(screen.getByRole('combobox', { name: 'Change status for Autumn campaign' }));
+
 		// Pager: the disabled "Previous" span on page 1 is not a tab stop at all, so the next stop
-		// after the last sort header is the current-page link, then the next page, then "Next".
+		// after the last row's status select is the current-page link, then the next page, then
+		// "Next".
 		await expectFocus(screen.getByRole('link', { name: '1' }));
 		await expectFocus(screen.getByRole('link', { name: 'Page 2' }));
 		await expectFocus(screen.getByRole('link', { name: 'Next' }));
