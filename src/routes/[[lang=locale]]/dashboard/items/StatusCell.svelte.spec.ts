@@ -6,9 +6,9 @@ import { createOptimisticStatus } from './optimistic.svelte';
 import StatusCell from './StatusCell.svelte';
 import type { Item } from '$lib/schemas/item';
 
-// $app/navigation's `invalidate` is mocked so the success path doesn't attempt a real SvelteKit
-// dependency-tracking call with no router mounted — matching page.svelte.spec.ts's own mock for
-// the same reason.
+// $app/navigation's `invalidate` is mocked so the success/failure paths don't attempt a real
+// SvelteKit dependency-tracking call with no router mounted — matching page.svelte.spec.ts's own
+// mock for the same reason.
 // invalidateAll is stubbed too, not because StatusCell calls it (it deliberately never does — see
 // optimistic.svelte.ts and the success handler below), but because $app/forms's `enhance` imports
 // it internally, and a partial module mock without it throws a missing-export error the moment
@@ -165,8 +165,8 @@ describe('StatusCell — optimistic apply', () => {
 	});
 });
 
-describe('StatusCell — three distinct rollback classes', () => {
-	it('rolls back and shows the role-specific message on a 403 failure', async () => {
+describe('StatusCell — four rollback classes plus network', () => {
+	it('rolls back to the server value and shows the role-specific message on a 403 failure', async () => {
 		const pending = deferred<Response>();
 		fetchMock.mockReturnValue(pending.promise);
 
@@ -198,7 +198,39 @@ describe('StatusCell — three distinct rollback classes', () => {
 			.toContain('Archived campaigns cannot be changed.');
 	});
 
-	it('rolls back and shows the network-specific message when the request itself throws — different copy than 403 or 409', async () => {
+	it('rolls back and shows the invalid-status message on a 400 failure — a row-deletion boundary must not be confused with a permissions one', async () => {
+		const pending = deferred<Response>();
+		fetchMock.mockReturnValue(pending.promise);
+
+		const { select, toasts } = renderCell(makeItem({ status: 'draft' }));
+
+		await select.selectOptions('active');
+		await expect.element(select).toHaveValue('active');
+
+		pending.resolve(failureResponse(400, 'invalid'));
+		await expect.element(select).toHaveValue('draft');
+		await expect
+			.poll(() => toasts.items.map((toast) => toast.message))
+			.toContain('That status is not valid.');
+	});
+
+	it('rolls back and shows the row-missing message on a 404 failure — not the role message', async () => {
+		const pending = deferred<Response>();
+		fetchMock.mockReturnValue(pending.promise);
+
+		const { select, toasts } = renderCell(makeItem({ status: 'draft' }));
+
+		await select.selectOptions('active');
+		await expect.element(select).toHaveValue('active');
+
+		pending.resolve(failureResponse(404, 'missing'));
+		await expect.element(select).toHaveValue('draft');
+		await expect
+			.poll(() => toasts.items.map((toast) => toast.message))
+			.toContain('That campaign no longer exists.');
+	});
+
+	it('rolls back and shows the network-specific message when the request itself throws — different copy than any server-returned reason', async () => {
 		fetchMock.mockRejectedValue(new TypeError('Failed to fetch'));
 
 		const { select, toasts } = renderCell(makeItem({ status: 'draft' }));
@@ -211,28 +243,30 @@ describe('StatusCell — three distinct rollback classes', () => {
 			.toContain('Could not save. Check your connection.');
 	});
 
-	it('shows three different messages for the three failure classes, not one generic message', async () => {
+	// Extends (rather than duplicates) the message-distinctness assertion to all four reasons the
+	// action's `fail(...)` calls can actually send. `failureMessageKey` collapsing any pair of
+	// these into one message is exactly the bug: a row another session deleted (`missing`) or a
+	// status that fails validation (`invalid`) are not permissions problems, and showing "your role
+	// cannot edit campaigns" for either is actively wrong about which boundary the user hit.
+	it('shows four different messages for the four failure reasons, not one generic message', async () => {
 		const messages = new Set<string>();
 
-		fetchMock.mockReturnValueOnce(Promise.resolve(failureResponse(403, 'role')));
-		const roleCell = renderCell(makeItem({ id: 'role_row', status: 'draft' }));
-		await roleCell.select.selectOptions('active');
-		await expect.poll(() => roleCell.toasts.items.length).toBeGreaterThan(0);
-		roleCell.toasts.items.forEach((toast) => messages.add(toast.message));
+		const cases: Array<[status: number, reason: string]> = [
+			[403, 'role'],
+			[409, 'archived'],
+			[400, 'invalid'],
+			[404, 'missing']
+		];
 
-		fetchMock.mockReturnValueOnce(Promise.resolve(failureResponse(409, 'archived')));
-		const archivedCell = renderCell(makeItem({ id: 'archived_row', status: 'draft' }));
-		await archivedCell.select.selectOptions('active');
-		await expect.poll(() => archivedCell.toasts.items.length).toBeGreaterThan(0);
-		archivedCell.toasts.items.forEach((toast) => messages.add(toast.message));
+		for (const [status, reason] of cases) {
+			fetchMock.mockReturnValueOnce(Promise.resolve(failureResponse(status, reason)));
+			const cell = renderCell(makeItem({ id: `${reason}_row`, status: 'draft' }));
+			await cell.select.selectOptions('active');
+			await expect.poll(() => cell.toasts.items.length).toBeGreaterThan(0);
+			cell.toasts.items.forEach((toast) => messages.add(toast.message));
+		}
 
-		fetchMock.mockRejectedValueOnce(new TypeError('network down'));
-		const networkCell = renderCell(makeItem({ id: 'network_row', status: 'draft' }));
-		await networkCell.select.selectOptions('active');
-		await expect.poll(() => networkCell.toasts.items.length).toBeGreaterThan(0);
-		networkCell.toasts.items.forEach((toast) => messages.add(toast.message));
-
-		expect(messages.size).toBe(3);
+		expect(messages.size).toBe(4);
 	});
 });
 
@@ -250,6 +284,19 @@ describe('StatusCell — success path', () => {
 		expect(invalidateMock).toHaveBeenCalledWith('app:items');
 		expect(invalidateMock).not.toHaveBeenCalledWith(undefined);
 		expect(invalidateMock).toHaveBeenCalledTimes(1);
+	});
+
+	it('also invalidates app:items on a failure, so a row that drifted from server truth gets re-read', async () => {
+		const pending = deferred<Response>();
+		fetchMock.mockReturnValue(pending.promise);
+
+		const { select } = renderCell(makeItem({ status: 'draft' }));
+
+		await select.selectOptions('active');
+		pending.resolve(failureResponse(409, 'archived'));
+
+		await expect.poll(() => invalidateMock.mock.calls.length).toBeGreaterThan(0);
+		expect(invalidateMock).toHaveBeenCalledWith('app:items');
 	});
 });
 
@@ -280,53 +327,88 @@ async function renderTwoInFlightEdits(item: Item = makeItem({ status: 'draft' })
 describe('StatusCell — pending-token race', () => {
 	// The bug the per-row token guards against: two edits on the same row, where the *older*
 	// request's response arrives *after* the newer one's. Without the guard, the stale response's
-	// commit/rollback would clobber whatever the newer response already settled — last-write-wins
-	// by response order, not request order. Both responses are deferred promises resolved by hand
-	// in a deliberately inverted order, exercising the guard through the real fetch/enhance stack
-	// rather than by calling the store's methods directly (optimistic.svelte.spec.ts already does
-	// that in isolation).
+	// commit/rollback would clobber the row after the newer response already settled it —
+	// last-write-wins by response order, not request order. Both responses are deferred promises
+	// resolved by hand in a deliberately inverted order, exercising the guard through the real
+	// fetch/enhance stack rather than by calling the store's methods directly
+	// (optimistic.svelte.spec.ts already does that in isolation).
 	//
-	// Both tests below synchronize on `toasts.items.length` rather than asserting the select's
-	// value straight after calling `.resolve()`: the stale response's own async handling (its
+	// Both tests below synchronize on `invalidateMock`'s call count rather than asserting the
+	// select's value straight after calling `.resolve()`: the response's own async handling (its
 	// `fetch` -> `response.text()` -> `deserialize()` -> callback chain) hasn't necessarily run yet
 	// at that point, so a bare `toHaveValue` poll can pass "for free" by observing a value that was
-	// already correct *before* the guard even had a chance to run — proving nothing. A toast is
-	// pushed as the very last step of each response's handling, so waiting for its count is a real
-	// completion signal.
-	it('a stale first response resolving after a faster second one does not clobber the second edit', async () => {
-		const { select, toasts, firstResponse, secondResponse } = await renderTwoInFlightEdits();
+	// already correct *before* the guard even had a chance to run — proving nothing.
+	// `invalidate('app:items')` is called unconditionally at the end of every response's handling
+	// (owned or superseded, success or failure — see StatusCell.svelte), so waiting for its call
+	// count is a real completion signal even for a superseded response, which no longer pushes a
+	// toast at all (see the "superseded response" describe block below).
+	it('a stale first failure resolving after a faster second failure does not resurrect an abandoned guess', async () => {
+		const { select, toasts, optimistic, firstResponse, secondResponse } =
+			await renderTwoInFlightEdits();
 
-		// The second (newer) request's response arrives first and fails — rolling back to what was
-		// showing before *that* edit began, i.e. "paused" (the first edit's still-pending value),
-		// not the row's original "draft".
+		// The second (newer) request's response arrives first and fails. It owns the row, so it
+		// rolls back — which, correctly, means the override is simply cleared: the display falls
+		// back to `item.status` ("draft", the server's own truth), not to "paused" (the first
+		// edit's still-unconfirmed guess, and exactly the value an earlier, buggy version of
+		// `rollback` would have restored here).
 		secondResponse.resolve(failureResponse(409, 'archived'));
-		await expect.poll(() => toasts.items.length).toBe(1);
-		await expect.element(select).toHaveValue('paused');
+		await expect.poll(() => invalidateMock.mock.calls.length).toBe(1);
+		await expect.element(select).toHaveValue('draft');
+		expect(toasts.items).toHaveLength(1);
 
 		// The first (older) request's response finally arrives, also a failure. Its ticket no
-		// longer owns the latest write for this row — the guard must make this a no-op rather than
-		// reapplying "draft" (its own `previous`) over what the second response already settled.
+		// longer owns the row — the guard makes this a no-op on the override (there is nothing left
+		// to touch; it's already cleared) and, per the superseded-response rule, it must not push a
+		// second toast either.
 		firstResponse.resolve(failureResponse(403, 'role'));
-		await expect.poll(() => toasts.items.length).toBe(2);
-		await expect.element(select).toHaveValue('paused');
+		await expect.poll(() => invalidateMock.mock.calls.length).toBe(2);
+		await expect.element(select).toHaveValue('draft');
+		expect(optimistic.overrides.has('item_1')).toBe(false);
+		expect(toasts.items).toHaveLength(1);
 	});
 
-	// The test above exercises rollback's guard on both ends. This variant lets the *first*
-	// request succeed late instead, so the guard on `commit` specifically is what's under test:
-	// without it, a stale success would clear the live override the second request's rollback just
-	// restored, snapping the row back to its original "draft" status instead of "paused".
-	it('a stale first success arriving after a faster second failure does not clear the value the rollback restored', async () => {
+	// Same interleaving, but the *first* (stale) request eventually succeeds rather than fails —
+	// exercising `commit`'s guard specifically. Without it, a stale success would either delete an
+	// override it doesn't own, or (in the version this fix replaced) resurrect a value nobody
+	// wanted. Either way the row must stay exactly where the second (owning) response already left
+	// it, and the stale success must resolve silently.
+	it('a stale first success arriving after a faster second failure does not disturb the row or toast again', async () => {
 		const item = makeItem({ status: 'draft' });
 		const { select, toasts, optimistic, firstResponse, secondResponse } =
 			await renderTwoInFlightEdits(item);
 
 		secondResponse.resolve(failureResponse(409, 'archived'));
-		await expect.poll(() => toasts.items.length).toBe(1);
-		await expect.element(select).toHaveValue('paused');
+		await expect.poll(() => invalidateMock.mock.calls.length).toBe(1);
+		await expect.element(select).toHaveValue('draft');
+		expect(toasts.items).toHaveLength(1);
 
 		firstResponse.resolve(successResponse({ ...item, status: 'paused' }));
-		await expect.poll(() => toasts.items.length).toBe(2);
-		await expect.element(select).toHaveValue('paused');
-		expect(optimistic.overrides.get(item.id)?.value).toBe('paused');
+		await expect.poll(() => invalidateMock.mock.calls.length).toBe(2);
+		await expect.element(select).toHaveValue('draft');
+		expect(optimistic.overrides.has(item.id)).toBe(false);
+		expect(toasts.items).toHaveLength(1);
+	});
+});
+
+describe('StatusCell — superseded response', () => {
+	// Editing twice quickly and having the first (now-abandoned) request's failure pop up as an
+	// error toast is misleading: the user already replaced that value with a second edit, so a
+	// toast about the first one reads as an error about something they didn't do and aren't
+	// looking at anymore. A superseded ticket's commit/rollback still runs (and still invalidates),
+	// it just doesn't report to the user — the live ticket's own eventual response is what does.
+	it('shows exactly one toast when the first of two edits fails after the second has already begun', async () => {
+		const { toasts, firstResponse, secondResponse } = await renderTwoInFlightEdits();
+
+		// The first request's failure arrives after the second edit has already begun — it is
+		// superseded the instant the second edit called `begin`, before this response even lands.
+		firstResponse.resolve(failureResponse(403, 'role'));
+		await expect.poll(() => invalidateMock.mock.calls.length).toBe(1);
+		expect(toasts.items).toHaveLength(0);
+
+		// The second (live) request's own response still reports normally.
+		secondResponse.resolve(failureResponse(409, 'archived'));
+		await expect.poll(() => invalidateMock.mock.calls.length).toBe(2);
+		expect(toasts.items).toHaveLength(1);
+		expect(toasts.items[0]?.message).toBe('Archived campaigns cannot be changed.');
 	});
 });

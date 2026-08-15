@@ -10,115 +10,24 @@ describe('createOptimisticStatus', () => {
 		expect(optimistic.overrides.get('item_1')?.value).toBe('active');
 	});
 
-	it('commit clears the override, letting the row fall back to its real status', () => {
+	it('commit clears the override, letting the row fall back to its real status, and reports that it owned the row', () => {
 		const optimistic = createOptimisticStatus();
 
 		const ticket = optimistic.begin('item_1', 'active');
-		optimistic.commit(ticket);
+		const owned = optimistic.commit(ticket);
 
+		expect(owned).toBe(true);
 		expect(optimistic.overrides.has('item_1')).toBe(false);
 	});
 
-	it('rollback restores the value that was showing before this edit began', () => {
+	it('rollback clears the override the same way commit does — the display falls back to the server value, never to some other guess', () => {
 		const optimistic = createOptimisticStatus();
 
-		// A prior successful edit already committed, so nothing is overridden — the row is just
-		// showing its real, persisted status at this point.
-		optimistic.rollback(optimistic.begin('item_1', 'paused'));
-		expect(optimistic.overrides.has('item_1')).toBe(false);
-
-		// Now begin again on top of no override, and roll back — should end up back at "no
-		// override" (there was nothing to restore to), not stuck on the failed value.
 		const ticket = optimistic.begin('item_1', 'archived');
-		expect(optimistic.overrides.get('item_1')?.value).toBe('archived');
-		optimistic.rollback(ticket);
+		const owned = optimistic.rollback(ticket);
+
+		expect(owned).toBe(true);
 		expect(optimistic.overrides.has('item_1')).toBe(false);
-	});
-
-	it('rollback restores an earlier still-pending override, not the real status, when one exists', () => {
-		const optimistic = createOptimisticStatus();
-
-		optimistic.begin('item_1', 'active');
-		// A second edit begins before the first has been committed or rolled back — its `previous`
-		// is the first edit's optimistic value, not the row's original real status.
-		const second = optimistic.begin('item_1', 'paused');
-		expect(second.previous).toBe('active');
-
-		optimistic.rollback(second);
-		expect(optimistic.overrides.get('item_1')?.value).toBe('active');
-	});
-
-	// This is the bug the per-row token exists to prevent: two edits on the same row, where the
-	// *first* request's response arrives *after* the second's. Without the token guard, the first
-	// response's commit/rollback would blindly overwrite whatever the second edit left behind —
-	// last-write-wins by response order instead of request order. Built with hand-resolved
-	// deferred promises (not timers), so "the first response arrives after the second" is asserted
-	// by construction, not by hoping a timer fires in the right order.
-	it('a slow first response resolving after a fast second one does not clobber the second edit', () => {
-		const optimistic = createOptimisticStatus();
-
-		const first = optimistic.begin('item_1', 'active'); // slow request, sent first
-		const second = optimistic.begin('item_1', 'paused'); // fast request, sent second
-
-		// The second (later) edit is what should be showing right now, regardless of network order.
-		expect(optimistic.overrides.get('item_1')?.value).toBe('paused');
-
-		// The second request's response lands first and commits.
-		optimistic.commit(second);
-		expect(optimistic.overrides.has('item_1')).toBe(false); // committed = falls back to real value
-
-		// The first request's response finally lands. Its ticket no longer owns the latest write for
-		// this row (the second edit's commit already superseded it), so both commit and rollback
-		// must no-op rather than reintroduing the stale "active" value or reverting to "before
-		// either edit ran".
-		optimistic.commit(first);
-		expect(optimistic.overrides.has('item_1')).toBe(false);
-
-		optimistic.rollback(first);
-		expect(optimistic.overrides.has('item_1')).toBe(false);
-	});
-
-	it('a stale rollback arriving after a newer edit already rolled back does not overwrite it', () => {
-		const optimistic = createOptimisticStatus();
-
-		const first = optimistic.begin('item_1', 'active'); // slow request, sent first
-		const second = optimistic.begin('item_1', 'paused'); // fast request, sent second
-
-		// The second (newer) edit fails first and rolls back — it restores the row to what was
-		// showing before *it* began, which is the first edit's still-pending optimistic value, not
-		// the row's original real status (the first edit hasn't settled yet).
-		optimistic.rollback(second);
-		expect(optimistic.overrides.get('item_1')?.value).toBe('active');
-
-		// The first request's own failure response finally arrives. Its ticket no longer owns the
-		// latest write (rollback(second) already advanced the row past it), so this must no-op
-		// rather than reapplying "active" a second time via a different, now-stale code path.
-		optimistic.rollback(first);
-		expect(optimistic.overrides.get('item_1')?.value).toBe('active');
-	});
-
-	// commit's own guard, isolated from rollback's: deleting an already-absent key looks identical
-	// whether or not commit checked the token first, so a race test built entirely out of deletes
-	// (like the two above) can pass even with commit's guard removed. This scenario leaves a *live,
-	// different-token* override in place (via rollback(second)) before the stale commit(first)
-	// arrives, so an unguarded `overrides.delete(...)` has something real to wrongly destroy.
-	it('a stale commit arriving after a newer edit rolled back does not clear the value it restored', () => {
-		const optimistic = createOptimisticStatus();
-
-		const first = optimistic.begin('item_1', 'active'); // slow request, sent first
-		const second = optimistic.begin('item_1', 'paused'); // fast request, sent second
-
-		// second fails first and rolls back, restoring "active" (first's still-pending value) — the
-		// override is still live, just now owned by second's token.
-		optimistic.rollback(second);
-		expect(optimistic.overrides.get('item_1')?.value).toBe('active');
-
-		// first's own (stale) success response finally arrives. Its ticket no longer owns the
-		// latest write, so this must no-op rather than deleting the override rollback(second) just
-		// restored — which would incorrectly fall the row back to its original real status instead
-		// of the "active" value that is actually correct right now.
-		optimistic.commit(first);
-		expect(optimistic.overrides.get('item_1')?.value).toBe('active');
 	});
 
 	it('keeps overrides for different rows fully independent', () => {
@@ -131,5 +40,113 @@ describe('createOptimisticStatus', () => {
 
 		expect(optimistic.overrides.has('item_1')).toBe(false);
 		expect(optimistic.overrides.get('item_2')?.value).toBe('paused');
+	});
+
+	// This is the bug the per-row token exists to prevent: two edits on the same row, where the
+	// *first* request's response arrives *after* the second's. Without the token guard, the first
+	// response's commit/rollback would blindly clear whatever the second edit left behind —
+	// last-write-wins by response order instead of request order. Built with hand-resolved
+	// deferred promises (not timers) at the component level (see StatusCell.svelte.spec.ts); here
+	// at the store level the "response arriving" is just calling commit/rollback in the order under
+	// test, which is what actually exercises the guard.
+	it('a slow first response resolving after a fast second one does not clobber the second edit', () => {
+		const optimistic = createOptimisticStatus();
+
+		const first = optimistic.begin('item_1', 'active'); // slow request, sent first
+		const second = optimistic.begin('item_1', 'paused'); // fast request, sent second
+
+		// The second (later) edit is what should be showing right now, regardless of network order.
+		expect(optimistic.overrides.get('item_1')?.value).toBe('paused');
+
+		// The second request's response lands first and commits.
+		expect(optimistic.commit(second)).toBe(true);
+		expect(optimistic.overrides.has('item_1')).toBe(false); // committed = falls back to real value
+
+		// The first request's response finally lands. Its ticket no longer owns the latest write for
+		// this row (the second edit's commit already superseded it), so both commit and rollback
+		// must report they didn't own the row and leave it untouched.
+		expect(optimistic.commit(first)).toBe(false);
+		expect(optimistic.overrides.has('item_1')).toBe(false);
+
+		expect(optimistic.rollback(first)).toBe(false);
+		expect(optimistic.overrides.has('item_1')).toBe(false);
+	});
+
+	// commit's own guard, isolated: a stale commit arriving while a *different*, newer edit is
+	// still pending must not clear that newer edit's still-unconfirmed value. Unlike a scenario
+	// built entirely from settled (deleted) overrides, this one has something live for an unguarded
+	// `overrides.delete(...)` to wrongly destroy.
+	it("a stale commit does not clear a newer edit's still-pending override", () => {
+		const optimistic = createOptimisticStatus();
+
+		const first = optimistic.begin('item_1', 'active'); // slow request, sent first
+		optimistic.begin('item_1', 'paused'); // second edit begins before the first resolves
+
+		const owned = optimistic.commit(first); // first's stale response finally arrives
+
+		expect(owned).toBe(false);
+		expect(optimistic.overrides.get('item_1')?.value).toBe('paused');
+	});
+
+	// The same guard, exercised through rollback instead of commit — both are separate public
+	// methods (even though they now do the same thing internally), so both need their own proof.
+	it("a stale rollback does not clear a newer edit's still-pending override", () => {
+		const optimistic = createOptimisticStatus();
+
+		const first = optimistic.begin('item_1', 'active');
+		optimistic.begin('item_1', 'paused');
+
+		const owned = optimistic.rollback(first);
+
+		expect(owned).toBe(false);
+		expect(optimistic.overrides.get('item_1')?.value).toBe('paused');
+	});
+
+	// The bug this store used to have: `rollback` restored a ticket's `previous` value, captured
+	// from whatever was *currently displayed* at `begin` time — which can be another still-in-flight
+	// edit's own unconfirmed guess, not server truth. Row starts at "draft". Edit A (draft -> paused)
+	// begins; edit B (paused -> archived) begins before A resolves, capturing "paused" — A's guess —
+	// as whatever it would have restored to. Both edits fail. There is no server value anywhere in
+	// this store (it only ever tracks overrides), so the only correct outcome is that neither
+	// ticket's failure leaves any trace: the row must show `item.status` (draft, server truth) once
+	// StatusCell falls back to it, not "paused", which nobody chose and the server never accepted.
+	it('after two edits on one row both fail — second response first, then first — the row carries no override', () => {
+		const optimistic = createOptimisticStatus();
+
+		const a = optimistic.begin('item_1', 'paused'); // draft -> paused
+		const b = optimistic.begin('item_1', 'archived'); // paused -> archived, begins before A resolves
+
+		optimistic.rollback(b); // B's failure arrives first
+		optimistic.rollback(a); // A's failure arrives after — stale, but must not resurrect "paused"
+
+		expect(optimistic.overrides.has('item_1')).toBe(false);
+	});
+
+	it('after two edits on one row both fail — first response first, then second — the row carries no override', () => {
+		const optimistic = createOptimisticStatus();
+
+		const a = optimistic.begin('item_1', 'paused');
+		const b = optimistic.begin('item_1', 'archived');
+
+		optimistic.rollback(a); // A's failure arrives first — already stale, since B owns the row
+		optimistic.rollback(b); // B's failure arrives after and actually settles the row
+
+		expect(optimistic.overrides.has('item_1')).toBe(false);
+	});
+
+	// Broader than the two above: any interleaving of commit/rollback, once every ticket for a row
+	// has resolved, must leave that row with no override at all — never an orphaned entry that
+	// permanently shadows `item.status` because the ticket that could have cleared it already lost
+	// the token race.
+	it('once every in-flight request on a row has resolved, in any mix of success and failure, the row carries no override', () => {
+		const optimistic = createOptimisticStatus();
+
+		const a = optimistic.begin('item_1', 'paused');
+		const b = optimistic.begin('item_1', 'archived');
+
+		optimistic.commit(b); // B succeeds
+		optimistic.rollback(a); // A's stale failure arrives after — must not reintroduce anything
+
+		expect(optimistic.overrides.has('item_1')).toBe(false);
 	});
 });

@@ -66,6 +66,8 @@
 	"dashboard.items.errorRole": "Your role cannot edit campaigns.",
 	"dashboard.items.errorArchived": "Archived campaigns cannot be changed.",
 	"dashboard.items.errorNetwork": "Could not save. Check your connection.",
+	"dashboard.items.errorMissing": "That campaign no longer exists.",
+	"dashboard.items.errorInvalid": "That status is not valid.",
 	"status.draft": "Draft",
 	"status.scheduled": "Scheduled",
 	"status.active": "Active",

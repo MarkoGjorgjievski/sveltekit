@@ -26,12 +26,27 @@
 
 	let formEl = $state<HTMLFormElement | null>(null);
 
-	// 403 (wrong role) and 409 (archived row) are different problems with different recourse — a
-	// different account vs. unarchiving first — so they keep separate copy instead of collapsing
-	// into one generic failure message. A thrown/network failure (result.type === 'error') gets a
-	// third message: retry, since the request itself never landed.
+	// Four reasons, four messages: 403 (wrong role), 409 (archived row), 400 (invalid status —
+	// unreachable from this form's own controls, but reachable if the request is tampered with),
+	// and 404 (row deleted by another session between page load and this submit) are all different
+	// problems with different recourse. Collapsing any pair into one message misleads the user
+	// about which of them applies — a row deleted elsewhere is not a permissions problem, and
+	// showing "your role cannot edit campaigns" for it is actively wrong. `result.type === 'error'`
+	// (a thrown or network failure) gets a fifth message via the `else` branch below: retry, since
+	// the request itself never landed and none of these server-returned reasons apply.
 	function failureMessageKey(reason: unknown): MessageKey {
-		return reason === 'archived' ? 'dashboard.items.errorArchived' : 'dashboard.items.errorRole';
+		switch (reason) {
+			case 'role':
+				return 'dashboard.items.errorRole';
+			case 'archived':
+				return 'dashboard.items.errorArchived';
+			case 'invalid':
+				return 'dashboard.items.errorInvalid';
+			case 'missing':
+				return 'dashboard.items.errorMissing';
+			default:
+				return 'dashboard.items.errorNetwork';
+		}
 	}
 </script>
 
@@ -45,21 +60,34 @@
 
 		return async ({ result, update }) => {
 			if (result.type === 'success') {
-				optimistic.commit(ticket);
-				toasts.push(t(locale, 'dashboard.items.saved'), 'success');
+				// `commit` returns false if a newer edit on this row has already begun — that edit's
+				// own optimistic value is still live and this response no longer speaks for the row,
+				// so this one resolves silently rather than reporting success for a value the row no
+				// longer shows.
+				const owned = optimistic.commit(ticket);
+				if (owned) toasts.push(t(locale, 'dashboard.items.saved'), 'success');
 				// Only this query is invalidated — `invalidateAll()` would re-run every `load` on the
-				// page for a single row's status change.
+				// page for a single row's status change. Invalidated even when superseded: the server
+				// really did apply this change, so cached data should still catch up with it.
 				await invalidate('app:items');
 				return;
 			}
 
-			optimistic.rollback(ticket);
-
-			if (result.type === 'failure') {
-				toasts.push(t(locale, failureMessageKey(result.data?.reason)), 'danger');
-			} else {
-				toasts.push(t(locale, 'dashboard.items.errorNetwork'), 'danger');
+			// Same ownership check as commit, for the same reason: a superseded ticket's failure is
+			// not news to the user, who has already moved on to a different edit.
+			const owned = optimistic.rollback(ticket);
+			if (owned) {
+				if (result.type === 'failure') {
+					toasts.push(t(locale, failureMessageKey(result.data?.reason)), 'danger');
+				} else {
+					toasts.push(t(locale, 'dashboard.items.errorNetwork'), 'danger');
+				}
 			}
+
+			// Re-reads the row from the server rather than trusting the `item` prop as it was when
+			// this component last rendered — a failed request is exactly the moment local state and
+			// server truth can have drifted (someone else archived or deleted the row, for instance).
+			await invalidate('app:items');
 
 			// The optimistic value has already been rolled back above; this just resyncs the form's
 			// own bookkeeping (e.g. re-enables it after enhance's implicit disable) without SvelteKit

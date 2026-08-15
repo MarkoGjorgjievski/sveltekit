@@ -66,6 +66,8 @@
 	"dashboard.items.errorRole": "Deine Rolle darf keine Kampagnen bearbeiten.",
 	"dashboard.items.errorArchived": "Archivierte Kampagnen können nicht geändert werden.",
 	"dashboard.items.errorNetwork": "Speichern fehlgeschlagen. Prüfe deine Verbindung.",
+	"dashboard.items.errorMissing": "Diese Kampagne existiert nicht mehr.",
+	"dashboard.items.errorInvalid": "Dieser Status ist ungültig.",
 	"status.draft": "Entwurf",
 	"status.scheduled": "Geplant",
 	"status.active": "Aktiv",
