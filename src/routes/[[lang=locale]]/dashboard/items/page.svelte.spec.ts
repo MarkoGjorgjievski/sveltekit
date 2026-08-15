@@ -8,9 +8,14 @@ import type { PageProps } from './$types';
 import type { ItemsResult } from './+page.server';
 import { reservedResultsHeightPx } from './table-metrics';
 
-// $app/navigation is mocked so ErrorRegion's retry button can call invalidate() without
-// SvelteKit attempting a real client-side navigation with no router mounted.
-vi.mock('$app/navigation', () => ({ invalidate: vi.fn() }));
+// $app/navigation is mocked so ErrorRegion's retry button can call invalidate(), and FilterBar's
+// debounced input can call goto()/beforeNavigate(), without SvelteKit attempting a real
+// client-side navigation with no router mounted.
+vi.mock('$app/navigation', () => ({
+	invalidate: vi.fn(),
+	goto: vi.fn(),
+	beforeNavigate: vi.fn()
+}));
 
 function makeItem(overrides: Partial<Item> = {}): Item {
 	return {
