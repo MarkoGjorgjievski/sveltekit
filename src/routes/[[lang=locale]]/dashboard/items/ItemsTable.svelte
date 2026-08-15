@@ -9,16 +9,23 @@
 	import { t } from '$lib/i18n/t';
 	import { formatCurrency, formatDate, formatPercent } from '$lib/i18n/format';
 	import Badge from '$lib/ui/Badge.svelte';
-	import FilterBar from './FilterBar.svelte';
 	import Pager from './Pager.svelte';
 
 	interface Props {
 		page: ItemPage;
 		query: ItemQuery;
 		locale: Locale;
+		// Not read yet — the optimistic inline status editor is built in a later task and will read
+		// this same prop when it renders in place of the static Badge below. Kept in this
+		// component's interface now (rather than added when that task lands) because it is part of
+		// this table's stated public contract. There is no honest, non-decorative use for it in
+		// this task's markup, so it is destructured but deliberately left unread, with the lint
+		// rule that would otherwise flag it disabled on this one line, rather than surfaced as a
+		// dead attribute nothing consumes.
 		canEdit: boolean;
 	}
 
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	let { page, query, locale, canEdit }: Props = $props();
 
 	const COLUMNS: { key: SortKey; label: MessageKey; numeric: boolean }[] = [
@@ -74,12 +81,10 @@
 </script>
 
 <div>
-	<FilterBar {query} facets={page.facets} {locale} />
-
 	{#if page.total === 0}
 		<div
 			data-testid="items-empty-state"
-			class="mt-6 rounded-(--radius-card) border border-border bg-surface px-4 py-8 text-center text-sm text-ink-muted"
+			class="rounded-(--radius-card) border border-border bg-surface px-4 py-8 text-center text-sm text-ink-muted"
 		>
 			<p>{t(locale, 'dashboard.items.empty')}</p>
 			{#if hasActiveFilters}
@@ -92,13 +97,7 @@
 			{/if}
 		</div>
 	{:else}
-		<!--
-			canEdit has no visible effect in this table yet — the optimistic inline status editor is
-			built in a later task and will read this same prop rather than threading a second one
-			through. Exposed as a data attribute so the seam is inspectable without adding UI ahead
-			of the feature that needs it.
-		-->
-		<table class="mt-6 w-full table-fixed border-collapse" data-can-edit={canEdit}>
+		<table class="w-full table-fixed border-collapse">
 			<caption class="sr-only">{t(locale, 'dashboard.items.title')}</caption>
 			<colgroup>
 				<col class="w-[20%]" />

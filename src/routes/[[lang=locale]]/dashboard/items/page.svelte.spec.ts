@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { render } from 'vitest-browser-svelte';
+import { userEvent } from '@vitest/browser/context';
 import { DEFAULT_QUERY } from '$lib/url/query-codec';
 import type { Item } from '$lib/schemas/item';
 import type { ItemPage } from '$lib/server/data/items.repo';
@@ -118,6 +119,22 @@ describe('dashboard/items page', () => {
 		expect(skeletonTable).not.toBeNull();
 	});
 
+	// FilterBar is built entirely from `data.query`, which resolves synchronously with the page
+	// shell, so it must never wait on the streamed promise — that dependency is exactly what used
+	// to make the results region grow by the filter bar's full height on every single load.
+	it('renders the filter bar immediately, before the streamed result resolves', async () => {
+		const neverResolves = new Promise<ItemsResult>(() => {});
+		const screen = render(Page, props(neverResolves));
+
+		await expect.element(screen.getByRole('combobox', { name: 'Status' })).toBeInTheDocument();
+		// The results region (skeleton, then table) is a distinct sibling from the filter bar, so
+		// the filter bar sits outside its min-height reservation entirely.
+		const filterForm = screen.container.querySelector('form');
+		const region = screen.container.querySelector('[data-testid="items-results-region"]');
+		expect(filterForm).not.toBeNull();
+		expect(region?.contains(filterForm)).toBe(false);
+	});
+
 	it("reserves the skeleton's full height on the results region, even for a short resolved state", async () => {
 		// perPage is chosen distinct from any other default used in this file so this assertion
 		// can't coincidentally pass against a hardcoded number — it must go through the real
@@ -142,5 +159,68 @@ describe('dashboard/items page', () => {
 		);
 		expect(region).not.toBeNull();
 		expect(getComputedStyle(region!).minHeight).toBe(`${reservedResultsHeightPx(perPage)}px`);
+	});
+
+	// FilterBar renders above the streamed region, built from `data.query` alone — it no longer
+	// lives inside ItemsTable, so this is the one place FilterBar, the sort headers, and the pager
+	// are ever assembled together the way a real user actually encounters them. A tab walk scoped
+	// to any single component would skip the other two.
+	it('reaches every sort header, every facet combobox, the pager links, and the clear-filters link by Tab alone', async () => {
+		const rows = [
+			makeItem({ id: 'item_1', name: 'Spring campaign' }),
+			makeItem({ id: 'item_2', name: 'Autumn campaign' })
+		];
+		const result: ItemsResult = {
+			ok: true,
+			page: makePage({ rows, total: 15, page: 1, pageCount: 2 }),
+			health: { dropped: 0 }
+		};
+		const screen = render(
+			Page,
+			// An active filter, so FilterBar's own clear-filters link renders too.
+			props(Promise.resolve(result), { query: { ...DEFAULT_QUERY, status: ['active'] } })
+		);
+		await expect.element(screen.getByRole('link', { name: 'Name' })).toBeInTheDocument();
+
+		const expectFocus = async (locator: ReturnType<typeof screen.getByRole>) => {
+			await userEvent.tab();
+			await expect.element(locator).toHaveFocus();
+		};
+
+		// The browser tab under test starts with nothing focused, and a bare Tab press from that
+		// state doesn't reliably enter the page in this harness — so focus is seeded with a real
+		// click on the first control, same as a keyboard user landing here via Shift+Tab from the
+		// browser chrome would. Every control after this one is reached by Tab alone.
+		const searchInput = screen.getByLabelText('Search');
+		await searchInput.click();
+		await expect.element(searchInput).toHaveFocus();
+
+		// FilterBar: three comboboxes, perPage select, submit, clear-filters link.
+		await expectFocus(screen.getByRole('combobox', { name: 'Status' }));
+		await expectFocus(screen.getByRole('combobox', { name: 'Channel' }));
+		await expectFocus(screen.getByRole('combobox', { name: 'Tags' }));
+		await expectFocus(screen.getByLabelText('Rows per page'));
+		await expectFocus(screen.getByRole('button', { name: 'Apply filters' }));
+		await expectFocus(screen.getByRole('link', { name: 'Clear filters' }));
+
+		// Every sort header, in column order.
+		for (const name of [
+			'Name',
+			'Status',
+			'Channel',
+			'Owner',
+			'Budget',
+			'Spent',
+			'CTR',
+			'Updated'
+		]) {
+			await expectFocus(screen.getByRole('link', { name }));
+		}
+
+		// Pager: the disabled "Previous" span on page 1 is not a tab stop at all, so the next stop
+		// after the last sort header is the current-page link, then the next page, then "Next".
+		await expectFocus(screen.getByRole('link', { name: '1' }));
+		await expectFocus(screen.getByRole('link', { name: 'Page 2' }));
+		await expectFocus(screen.getByRole('link', { name: 'Next' }));
 	});
 });

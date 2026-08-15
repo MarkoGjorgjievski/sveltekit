@@ -11,13 +11,16 @@
 	import { PER_PAGE_OPTIONS } from '$lib/schemas/query';
 	import type { Locale } from '$lib/schemas/post';
 	import { t } from '$lib/i18n/t';
-	import { toSearchParams, type ItemQuery } from '$lib/url/query-codec';
+	import { QUERY_PARAM, toSearchParams, type ItemQuery } from '$lib/url/query-codec';
 	import type { FacetCounts } from '$lib/server/data/items.repo';
 	import Combobox from '$lib/ui/Combobox.svelte';
 
 	interface Props {
 		query: ItemQuery;
-		facets: FacetCounts;
+		// Undefined until the streamed result resolves — this bar renders immediately from `query`
+		// alone (built synchronously with the page shell), so per-option counts arrive a tick
+		// later rather than being a reason to delay the whole bar.
+		facets: FacetCounts | undefined;
 		locale: Locale;
 	}
 
@@ -34,7 +37,7 @@
 		ITEM_STATUSES.map((status) => ({
 			value: status,
 			label: t(locale, `status.${status}`),
-			count: facets.status[status]
+			count: facets?.status[status]
 		}))
 	);
 
@@ -42,14 +45,19 @@
 		ITEM_CHANNELS.map((channel) => ({
 			value: channel,
 			label: t(locale, `channel.${channel}`),
-			count: facets.channel[channel]
+			count: facets?.channel[channel]
 		}))
 	);
 
+	// The set of tag values itself — not just their counts — comes from the resolved facets
+	// (tags are free-text, fixture-driven data with no fixed enum), so there is nothing to show
+	// here until the first result resolves.
 	const tagOptions = $derived(
-		Object.keys(facets.tags)
-			.sort()
-			.map((tag) => ({ value: tag, label: tag, count: facets.tags[tag] }))
+		facets
+			? Object.keys(facets.tags)
+					.sort()
+					.map((tag) => ({ value: tag, label: tag, count: facets.tags[tag] }))
+			: []
 	);
 
 	// Local echo of the text box, distinct from `query.q` — a keystroke updates this immediately
@@ -125,6 +133,17 @@
 	aria-label={t(locale, 'dashboard.items.filters')}
 	class="flex flex-col gap-4 border-b border-border pb-4"
 >
+	<!-- Sort and direction are already in the URL, driven entirely by ItemsTable's sort-header
+	     links — this form never lets the user set them directly. But a plain GET submit replaces
+	     the whole query string with only the fields the form itself carries, so without these,
+	     submitting a filter change with JavaScript disabled would silently reset sorting to the
+	     server's default. Carrying them forward as hidden inputs keeps the no-JS submit path and
+	     the JS goto() path (which spreads {...query, ...patch}) equivalent. `page` is deliberately
+	     not carried the same way: a filter change resets it to 1, and omitting it here lets
+	     parseQuery's own default do that. -->
+	<input type="hidden" name={QUERY_PARAM.sort} value={query.sort} />
+	<input type="hidden" name={QUERY_PARAM.dir} value={query.dir} />
+
 	<div class="flex flex-wrap items-end gap-3">
 		<div class="flex flex-col gap-1.5">
 			<label for="items-filter-q" class="text-sm font-medium text-ink">
@@ -132,7 +151,7 @@
 			</label>
 			<input
 				id="items-filter-q"
-				name="q"
+				name={QUERY_PARAM.q}
 				type="search"
 				value={qValue}
 				oninput={handleQueryInput}
@@ -187,7 +206,12 @@
 					<label for="items-filter-status-native" class="text-sm font-medium text-ink">
 						{t(locale, 'dashboard.items.filter.status')}
 					</label>
-					<select id="items-filter-status-native" name="status" multiple class={fieldClass}>
+					<select
+						id="items-filter-status-native"
+						name={QUERY_PARAM.status}
+						multiple
+						class={fieldClass}
+					>
 						{#each statusOptions as option (option.value)}
 							<option value={option.value} selected={query.status.includes(option.value)}>
 								{option.label}
@@ -199,7 +223,12 @@
 					<label for="items-filter-channel-native" class="text-sm font-medium text-ink">
 						{t(locale, 'dashboard.items.filter.channel')}
 					</label>
-					<select id="items-filter-channel-native" name="channel" multiple class={fieldClass}>
+					<select
+						id="items-filter-channel-native"
+						name={QUERY_PARAM.channel}
+						multiple
+						class={fieldClass}
+					>
 						{#each channelOptions as option (option.value)}
 							<option value={option.value} selected={query.channel.includes(option.value)}>
 								{option.label}
@@ -211,7 +240,7 @@
 					<label for="items-filter-tags-native" class="text-sm font-medium text-ink">
 						{t(locale, 'dashboard.items.filter.tags')}
 					</label>
-					<select id="items-filter-tags-native" name="tag" multiple class={fieldClass}>
+					<select id="items-filter-tags-native" name={QUERY_PARAM.tags} multiple class={fieldClass}>
 						{#each tagOptions as option (option.value)}
 							<option value={option.value} selected={query.tags.includes(option.value)}>
 								{option.label}
@@ -228,7 +257,7 @@
 			</label>
 			<select
 				id="items-filter-perPage"
-				name="perPage"
+				name={QUERY_PARAM.perPage}
 				value={query.perPage}
 				onchange={handlePerPageChange}
 				class={fieldClass}

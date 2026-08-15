@@ -43,3 +43,24 @@
 		{/each}
 	</tbody>
 </table>
+
+<!--
+	Mirrors Pager's own wrapping div (`mt-3 flex flex-col gap-3 sm:flex-row ...`) — a summary-line
+	placeholder plus a row of pill-shaped placeholders standing in for the previous/numbered/next
+	links. Reserves room for the nav row unconditionally, even though the real Pager only renders
+	it when `pageCount > 1`: that is the taller, worst-case shape, and a resolved page with exactly
+	one page of results is shorter than reserved, which the region's min-height floor already
+	tolerates by design (see table-metrics.ts).
+-->
+<div
+	class="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
+	aria-hidden="true"
+>
+	<Skeleton height="1.25rem" width="10rem" />
+	<div class="flex items-center gap-1">
+		<Skeleton height="2rem" width="4rem" />
+		<Skeleton height="2rem" width="2rem" />
+		<Skeleton height="2rem" width="2rem" />
+		<Skeleton height="2rem" width="4rem" />
+	</div>
+</div>

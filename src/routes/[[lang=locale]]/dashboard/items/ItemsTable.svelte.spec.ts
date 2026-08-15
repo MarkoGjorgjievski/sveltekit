@@ -1,20 +1,10 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { render } from 'vitest-browser-svelte';
-import { userEvent } from '@vitest/browser/context';
 import { DEFAULT_QUERY } from '$lib/url/query-codec';
 import type { Item } from '$lib/schemas/item';
 import type { ItemPage } from '$lib/server/data/items.repo';
 import type { ItemQuery } from '$lib/url/query-codec';
 import ItemsTable from './ItemsTable.svelte';
-
-// FilterBar debounces its text input and cancels the timer via beforeNavigate, and its facet
-// pickers navigate with goto() — none of that should attempt a real client-side navigation with
-// no router mounted, so $app/navigation is mocked the same way the page spec mocks it.
-vi.mock('$app/navigation', () => ({
-	invalidate: vi.fn(),
-	goto: vi.fn(),
-	beforeNavigate: vi.fn()
-}));
 
 function makeItem(overrides: Partial<Item> = {}): Item {
 	return {
@@ -133,8 +123,9 @@ describe('ItemsTable — empty state', () => {
 		const screen = setup({ tags: ['nonexistent'] }, { rows: [], total: 0, pageCount: 0 });
 		await expect.element(screen.getByText('No campaigns yet.')).toBeInTheDocument();
 
-		// FilterBar renders its own persistent "Clear filters" link whenever a facet is active, so
-		// this scopes to the empty-state region specifically rather than matching either link.
+		// Scoped to the empty-state region specifically, even though ItemsTable itself no longer
+		// renders FilterBar (and its own persistent "Clear filters" link) alongside it — this keeps
+		// the assertion tied to the actual empty-state markup rather than "whichever link matched".
 		const emptyState = screen.container.querySelector('[data-testid="items-empty-state"]');
 		expect(emptyState).not.toBeNull();
 		const clear = emptyState?.querySelector('a');
@@ -150,62 +141,14 @@ describe('ItemsTable — empty state', () => {
 	});
 });
 
+// The full sort-header -> pager keyboard walk now lives in page.svelte.spec.ts, where FilterBar,
+// ItemsTable, and Pager are assembled together the way a real user actually encounters them —
+// ItemsTable alone no longer renders FilterBar, so a tab walk scoped to this component in
+// isolation would skip the filter bar entirely and prove less than it used to.
 describe('ItemsTable — keyboard parity', () => {
-	it('reaches every sort header, every facet combobox, the pager links, and the clear-filters link by Tab alone', async () => {
-		const rows = [
-			makeItem({ id: 'item_1', name: 'Spring campaign' }),
-			makeItem({ id: 'item_2', name: 'Autumn campaign' })
-		];
-		const screen = setup(
-			{ status: ['active'] }, // an active filter, so the clear-filters link renders
-			{ rows, total: 15, page: 1, pageCount: 2 }
-		);
-
-		const expectFocus = async (locator: ReturnType<typeof screen.getByRole>) => {
-			await userEvent.tab();
-			await expect.element(locator).toHaveFocus();
-		};
-
-		// The browser tab under test starts with nothing focused, and a bare Tab press from that
-		// state doesn't reliably enter the page in this harness — so focus is seeded with a real
-		// click on the first control, same as a keyboard user landing here via Shift+Tab from the
-		// browser chrome would. Every control after this one is reached by Tab alone.
-		const searchInput = screen.getByLabelText('Search');
-		await searchInput.click();
-		await expect.element(searchInput).toHaveFocus();
-
-		// FilterBar: three comboboxes, perPage select, submit, clear-filters link.
-		await expectFocus(screen.getByRole('combobox', { name: 'Status' }));
-		await expectFocus(screen.getByRole('combobox', { name: 'Channel' }));
-		await expectFocus(screen.getByRole('combobox', { name: 'Tags' }));
-		await expectFocus(screen.getByLabelText('Rows per page'));
-		await expectFocus(screen.getByRole('button', { name: 'Apply filters' }));
-		await expectFocus(screen.getByRole('link', { name: 'Clear filters' }));
-
-		// Every sort header, in column order.
-		for (const name of [
-			'Name',
-			'Status',
-			'Channel',
-			'Owner',
-			'Budget',
-			'Spent',
-			'CTR',
-			'Updated'
-		]) {
-			await expectFocus(screen.getByRole('link', { name }));
-		}
-
-		// Pager: the disabled "Previous" span on page 1 is not a tab stop at all, so the next stop
-		// after the last sort header is the current-page link, then the next page, then "Next".
-		await expectFocus(screen.getByRole('link', { name: '1' }));
-		await expectFocus(screen.getByRole('link', { name: 'Page 2' }));
-		await expectFocus(screen.getByRole('link', { name: 'Next' }));
-	});
-
 	it('has no interactive element with a negative tabindex anywhere in the rendered table', async () => {
 		const rows = [makeItem()];
-		const screen = setup({ status: ['active'] }, { rows, total: 15, page: 1, pageCount: 2 });
+		const screen = setup({}, { rows, total: 15, page: 1, pageCount: 2 });
 
 		const interactive = screen.container.querySelectorAll('a, button, input, select');
 		expect(interactive.length).toBeGreaterThan(0);
