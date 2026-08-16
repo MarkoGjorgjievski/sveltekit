@@ -1,0 +1,121 @@
+<script lang="ts">
+	import { enhance } from '$app/forms';
+	import { invalidate } from '$app/navigation';
+	import { getContext } from 'svelte';
+	import { ITEM_STATUSES, type Item, type ItemStatus } from '$lib/schemas/item';
+	import { TOAST_KEY, type ToastQueue } from '$lib/ui/toast.svelte';
+	import { t, type MessageKey } from '$lib/i18n/t';
+	import type { Locale } from '$lib/schemas/post';
+	import type { OptimisticStatus } from './optimistic.svelte';
+
+	interface Props {
+		item: Item;
+		locale: Locale;
+		canEdit: boolean;
+		optimistic: OptimisticStatus;
+	}
+
+	let { item, locale, canEdit, optimistic }: Props = $props();
+	const toasts = getContext<ToastQueue>(TOAST_KEY);
+
+	// Falls back to the row's real status once nothing in the optimistic map owns this id anymore
+	// (no edit in flight, or the last one settled) — `optimistic.overrides` is a SvelteMap, so this
+	// stays reactive to every begin/commit/rollback without this component reaching into the store's
+	// internals.
+	const shown = $derived(optimistic.overrides.get(item.id)?.value ?? item.status);
+
+	let formEl = $state<HTMLFormElement | null>(null);
+
+	// Four reasons, four messages: 403 (wrong role), 409 (archived row), 400 (invalid status —
+	// unreachable from this form's own controls, but reachable if the request is tampered with),
+	// and 404 (row deleted by another session between page load and this submit) are all different
+	// problems with different recourse. Collapsing any pair into one message misleads the user
+	// about which of them applies — a row deleted elsewhere is not a permissions problem, and
+	// showing "your role cannot edit campaigns" for it is actively wrong. `result.type === 'error'`
+	// (a thrown or network failure) gets a fifth message via the `else` branch below: retry, since
+	// the request itself never landed and none of these server-returned reasons apply.
+	function failureMessageKey(reason: unknown): MessageKey {
+		switch (reason) {
+			case 'role':
+				return 'dashboard.items.errorRole';
+			case 'archived':
+				return 'dashboard.items.errorArchived';
+			case 'invalid':
+				return 'dashboard.items.errorInvalid';
+			case 'missing':
+				return 'dashboard.items.errorMissing';
+			default:
+				return 'dashboard.items.errorNetwork';
+		}
+	}
+</script>
+
+<form
+	bind:this={formEl}
+	method="POST"
+	action="?/updateStatus"
+	use:enhance={({ formData }) => {
+		const next = String(formData.get('status')) as ItemStatus;
+		const ticket = optimistic.begin(item.id, next);
+
+		return async ({ result, update }) => {
+			if (result.type === 'success') {
+				// `commit` returns false if a newer edit on this row has already begun — that edit's
+				// own optimistic value is still live and this response no longer speaks for the row,
+				// so this one resolves silently rather than reporting success for a value the row no
+				// longer shows.
+				const owned = optimistic.commit(ticket);
+				if (owned) toasts.push(t(locale, 'dashboard.items.saved'), 'success');
+				// Only this query is invalidated — `invalidateAll()` would re-run every `load` on the
+				// page for a single row's status change. Invalidated even when superseded: the server
+				// really did apply this change, so cached data should still catch up with it.
+				await invalidate('app:items');
+				return;
+			}
+
+			// Same ownership check as commit, for the same reason: a superseded ticket's failure is
+			// not news to the user, who has already moved on to a different edit.
+			const owned = optimistic.rollback(ticket);
+			if (owned) {
+				if (result.type === 'failure') {
+					toasts.push(t(locale, failureMessageKey(result.data?.reason)), 'danger');
+				} else {
+					toasts.push(t(locale, 'dashboard.items.errorNetwork'), 'danger');
+				}
+			}
+
+			// Re-reads the row from the server rather than trusting the `item` prop as it was when
+			// this component last rendered — a failed request is exactly the moment local state and
+			// server truth can have drifted (someone else archived or deleted the row, for instance).
+			await invalidate('app:items');
+
+			// The optimistic value has already been rolled back above; this just resyncs the form's
+			// own bookkeeping (e.g. re-enables it after enhance's implicit disable) without SvelteKit
+			// re-applying `result` a second time or invalidating anything itself.
+			await update({ reset: false, invalidateAll: false });
+		};
+	}}
+>
+	<input type="hidden" name="id" value={item.id} />
+	<label class="sr-only" for={`status-${item.id}`}>
+		{t(locale, 'dashboard.items.editStatus', { name: item.name })}
+	</label>
+	<select
+		id={`status-${item.id}`}
+		name="status"
+		value={shown}
+		disabled={!canEdit}
+		onchange={() => formEl?.requestSubmit()}
+		data-testid={`status-${item.id}`}
+		class="w-full appearance-none border-0 bg-transparent p-0 text-sm text-ink focus-visible:rounded-(--radius-control) focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent enabled:cursor-pointer enabled:hover:text-accent-ink disabled:cursor-not-allowed disabled:opacity-60"
+	>
+		{#each ITEM_STATUSES as status (status)}
+			<option value={status}>{t(locale, `status.${status}`)}</option>
+		{/each}
+	</select>
+	<!-- The onchange auto-submit above is the enhancement; without JavaScript neither `use:enhance`
+	     nor onchange run, so this is the only way to submit a changed selection. `<noscript>`
+	     content is never parsed into the DOM when scripting is enabled, so it adds no extra tab
+	     stop or duplicate control during normal use or in these tests. -->
+	<noscript><button type="submit">{t(locale, 'common.save')}</button></noscript>
+</form>
