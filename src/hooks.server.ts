@@ -1,4 +1,4 @@
-import { redirect, type Handle } from '@sveltejs/kit';
+import { redirect, type Handle, type HandleServerError } from '@sveltejs/kit';
 import { building } from '$app/environment';
 import { SESSION_COOKIE, readSession } from '$lib/server/auth/session';
 
@@ -60,4 +60,26 @@ export const handle: Handle = async ({ event, resolve }) => {
 				tag.replace('%lang%', event.locals.locale).replace('%theme%', event.locals.theme)
 			)
 	});
+};
+
+// The server half of the same contract as hooks.client.ts. It logs rather than beaconing: this
+// process already has a log stream that a real sink (Sentry, Axiom) would attach to, and posting
+// a request to our own edge endpoint from inside a request handler would add a hop for nothing.
+//
+// SvelteKit only calls this for UNEXPECTED errors — thrown `error()` responses and 404s never
+// reach it — so there is no status to filter on here.
+export const handleError: HandleServerError = ({ error, event, status }) => {
+	console.error(
+		JSON.stringify({
+			at: new Date().toISOString(),
+			kind: 'error',
+			status,
+			path: event.url.pathname,
+			message: error instanceof Error ? error.message : String(error),
+			stack: error instanceof Error ? error.stack : undefined
+		})
+	);
+
+	// Same reasoning as the client hook: this is rendered to the user.
+	return { message: 'Something went wrong.' };
 };
