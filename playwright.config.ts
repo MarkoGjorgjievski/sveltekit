@@ -23,6 +23,10 @@ export default defineConfig({
 	forbidOnly: !!process.env.CI,
 	// No retries on purpose: a test that only passes on the second run is a finding, not noise.
 	retries: 0,
+	// One worker, deliberately. The items repository is a module-level store in a single preview
+	// process, and the authenticated suite writes to it — parallel files would race over which row
+	// is "the first draft" and fail for reasons that have nothing to do with the code under test.
+	workers: 1,
 	projects: [{ name: 'chromium', use: devices['Desktop Chrome'] }],
 	reporter: process.env.CI ? [['github'], ['html', { open: 'never' }]] : [['list']]
 });
