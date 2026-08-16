@@ -40,3 +40,21 @@ jobs:
             grep -rn "sveltekit-prerender" .svelte-kit/output/prerendered | head
             exit 1
           fi
+
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with: { node-version-file: '.nvmrc', cache: npm }
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      # Not `npm run test:e2e` — that script reinstalls browsers, which the step above
+      # already did with the system dependencies CI needs.
+      - run: npx playwright test
+      - uses: actions/upload-artifact@v5
+        if: ${{ !cancelled() }}
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7

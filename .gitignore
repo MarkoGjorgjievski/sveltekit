@@ -23,3 +23,6 @@ vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 # Playwright
 test-results
+
+# Playwright HTML reporter output (CI uploads it as an artifact instead)
+playwright-report
