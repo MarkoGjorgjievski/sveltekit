@@ -58,6 +58,31 @@ test('an editor edit is confirmed and survives a fresh navigation', async ({ pag
 	await expect(page.getByTestId(testId)).toHaveValue('active');
 });
 
+test('a refresh after an edit patches the table instead of remounting it', async ({ page }) => {
+	await signIn(page, 'editor@demo.test');
+	await page.goto('/en/dashboard/items?status=draft&sort=name&dir=asc');
+
+	const { select } = await firstEditableRow(page);
+	const table = await page.getByRole('table').elementHandle();
+	if (!table) throw new Error('the items table was not rendered');
+
+	// Armed before the edit so it is watching for the whole round trip.
+	const skeletonReturned = page
+		.getByText('Loading…')
+		.waitFor({ state: 'visible', timeout: 800 })
+		.then(() => true)
+		.catch(() => false);
+
+	await select.selectOption('paused');
+	await expect(toastRegion(page)).toContainText(/saved/i);
+
+	// invalidate('app:items') hands {#await} a new promise. Re-entering its pending branch would
+	// throw the skeleton back over a table the user is working in, destroy focus inside the row,
+	// and take ItemsTable's optimistic overrides down with the component instance.
+	expect(await skeletonReturned).toBe(false);
+	expect(await table.evaluate((node) => node.isConnected)).toBe(true);
+});
+
 test('a viewer edit rolls back with the role message', async ({ page }) => {
 	await signIn(page, 'viewer@demo.test');
 	await page.goto('/en/dashboard/items?status=draft&sort=name&dir=asc');
@@ -85,6 +110,39 @@ test('archived rows refuse edits with distinct copy', async ({ page }) => {
 
 	await expect(toastRegion(page)).toContainText(/archived campaigns cannot/i);
 	await expect(select).toHaveValue('archived');
+});
+
+test('two failed edits on one row roll back to server truth, not to each other', async ({
+	page
+}) => {
+	await signIn(page, 'editor@demo.test');
+	await page.goto('/en/dashboard/items?status=archived&sort=name&dir=asc');
+
+	// Driven as an editor on an archived row rather than as a viewer: a viewer's control is
+	// re-disabled the moment the first submit re-renders it, so a second edit is unreachable
+	// through the DOM and this race can never be set up.
+	let seen = 0;
+	await page.route(
+		(url) => url.pathname.endsWith('/dashboard/items') && url.search.includes('/updateStatus'),
+		async (route) => {
+			seen += 1;
+			// Hold the first refusal open so the second edit genuinely begins while it is in flight.
+			if (seen === 1) await new Promise((resolve) => setTimeout(resolve, 1000));
+			await route.continue();
+		}
+	);
+
+	const { select } = await firstEditableRow(page);
+
+	// Both are refused with 409. The second begins while the first is unresolved, which is the
+	// shape that once left the row displaying the first edit's unconfirmed guess — a value the
+	// user abandoned and the server never accepted. Rollback must land on the loaded status.
+	await select.selectOption('active');
+	await select.selectOption('paused');
+
+	await expect(toastRegion(page)).toContainText(/archived campaigns cannot/i);
+	await expect(select).toHaveValue('archived');
+	expect(seen).toBe(2);
 });
 
 test('sorting keeps the filter and resets the page', async ({ page }) => {
