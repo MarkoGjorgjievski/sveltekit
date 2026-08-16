@@ -27,6 +27,7 @@
 <div
 	role="status"
 	aria-live="polite"
+	data-testid="toast-region"
 	class="pointer-events-none fixed inset-x-0 bottom-4 z-50 flex flex-col items-center gap-2 px-4"
 >
 	{#each toasts.items as toast (toast.id)}

@@ -7,6 +7,7 @@
 	import ItemsTableSkeleton from './ItemsTableSkeleton.svelte';
 	import ErrorRegion from './ErrorRegion.svelte';
 	import { reservedResultsHeightPx } from './table-metrics';
+	import { toSearchParams } from '$lib/url/query-codec';
 	import type { FacetCounts } from '$lib/server/data/items.repo';
 	import type { PageProps } from './$types';
 
@@ -32,15 +33,51 @@
 	// user adjust filters while rows are still streaming rather than waiting.
 	//
 	// Its facet *counts* do still depend on the streamed result, so they arrive a tick later via
-	// this effect rather than gating the whole filter bar on the promise. `current` is captured
-	// per-run and compared against `data.result` before applying: without that guard, a slow
-	// response for an earlier navigation could resolve after a faster one for a later navigation
-	// and overwrite fresher counts with stale ones.
+	// the effect below rather than gating the whole filter bar on the promise.
 	let facets = $state<FacetCounts | undefined>(undefined);
+
+	type ItemsResult = Awaited<typeof data.result>;
+
+	// `data.result` is a NEW promise on every load — including a same-query refresh, which is what
+	// `invalidate('app:items')` triggers after every inline status edit. Awaiting it directly meant
+	// the `{#await}` block below re-entered its pending branch each time, and that unmounts the
+	// resolved branch: the table the user is working in was replaced by the skeleton for the whole
+	// round trip, keyboard focus inside the row was destroyed, and `ItemsTable`'s optimistic
+	// override map went with the component instance — so an edit still in flight on one row was
+	// discarded the moment a different row's edit resolved.
+	//
+	// So the awaited promise is only swapped when the *query* changes. A genuine navigation
+	// (sort, filter, page) really is new content and a skeleton is the honest thing to show for it.
+	// A same-query refresh resolves into `refreshed` instead and the resolved branch prefers it, so
+	// the table is patched in place and never unmounts.
+	// Capturing only the initial `data` is the point, not an oversight: these two seed the first
+	// paint — including the server render, where no effect has run yet and `{#await}` must already
+	// have a promise to stream against — and the effect below owns every update after that.
+	// svelte-ignore state_referenced_locally
+	let awaited = $state.raw(data.result);
+	// svelte-ignore state_referenced_locally
+	let awaitedKey = $state.raw(toSearchParams(data.query).toString());
+	let refreshed = $state.raw<ItemsResult | undefined>(undefined);
+
 	$effect(() => {
+		const key = toSearchParams(data.query).toString();
 		const current = data.result;
+
+		if (key !== awaitedKey) {
+			awaitedKey = key;
+			awaited = current;
+			// Belongs to the query being left behind; keeping it would show the old page's rows
+			// under the new query until the new load resolved.
+			refreshed = undefined;
+		}
+
+		// `current` is captured per-run and compared against `data.result` before applying: without
+		// that guard, a slow response for an earlier navigation could resolve after a faster one
+		// for a later navigation and overwrite fresher rows and counts with stale ones.
 		current.then((result) => {
-			if (result.ok && data.result === current) facets = result.page.facets;
+			if (data.result !== current) return;
+			if (result.ok) facets = result.page.facets;
+			refreshed = result;
 		});
 	});
 </script>
@@ -57,12 +94,16 @@
 	</div>
 
 	<div class="mt-6" style="min-height: {reservedHeightPx}px" data-testid="items-results-region">
-		{#await data.result}
+		{#await awaited}
 			<!-- The skeleton itself is aria-hidden (pure shape, no information), so this is the
 			     only signal screen-reader users get that data is on the way. -->
 			<p class="sr-only" role="status" aria-live="polite">{t(locale, 'common.loading')}</p>
 			<ItemsTableSkeleton rows={data.query.perPage} />
-		{:then result}
+		{:then initial}
+			<!-- `refreshed` is the same query re-read after a mutation; `initial` is the streamed
+			     first paint for this query. Preferring the former is what lets a refresh update the
+			     table in place instead of tearing the resolved branch down and rebuilding it. -->
+			{@const result = refreshed ?? initial}
 			{#if result.ok}
 				{#if result.health.dropped > 0}
 					<p

@@ -17,7 +17,15 @@ export default defineConfig({
 			// Prerendered routes get this as url.origin. Without it SvelteKit uses
 			// http://sveltekit-prerender, which would ship a sitemap full of a hostname
 			// that does not exist. Vercel sets PUBLIC_SITE_URL at build time.
-			prerender: { origin: process.env.PUBLIC_SITE_URL ?? 'http://localhost:5173' }
+			prerender: { origin: process.env.PUBLIC_SITE_URL ?? 'http://localhost:5173' },
+			// The generated tsconfig covers src/, test/ and tests/ — not e2e/, and not the
+			// Playwright config itself. Left alone the whole end-to-end suite would sit outside
+			// `npm run check` and could ship type errors no gate ever looks at.
+			typescript: {
+				config: (config) => {
+					config.include.push('../e2e/**/*.ts', '../playwright.config.ts');
+				}
+			}
 		})
 	],
 	test: {

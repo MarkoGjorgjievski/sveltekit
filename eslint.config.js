@@ -34,6 +34,18 @@ export default defineConfig(
 		}
 	},
 	{
+		// package.json is `"type": "module"`, so these files carry .cjs precisely because their
+		// consumers load them with require(): size-limit reads .size-limit.cjs, and @lhci/cli reads
+		// lighthouserc.cjs and the puppeteer script. Banning require() in files that exist to be
+		// required is the rule misfiring, not a finding.
+		//
+		// sourceType is deliberately left alone: setting it to 'commonjs' crashes
+		// svelte/no-inner-declarations inside eslint-plugin-svelte's core-rule wrapper.
+		files: ['**/*.cjs'],
+		languageOptions: { globals: { ...globals.node } },
+		rules: { '@typescript-eslint/no-require-imports': 'off' }
+	},
+	{
 		// Override or add rule settings here, such as:
 		// 'svelte/button-has-type': 'error'
 		rules: {}
