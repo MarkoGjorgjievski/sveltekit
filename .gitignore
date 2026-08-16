@@ -26,3 +26,6 @@ test-results
 
 # Playwright HTML reporter output (CI uploads it as an artifact instead)
 playwright-report
+
+# Lighthouse CI run output
+.lighthouseci
