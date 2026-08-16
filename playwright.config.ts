@@ -3,13 +3,14 @@ import { defineConfig, devices } from '@playwright/test';
 export default defineConfig({
 	testDir: 'e2e',
 	testMatch: '**/*.e2e.ts',
-	// A full build prerenders ~50 pages before preview can answer, and it is measured at 2m17s
-	// on a Windows dev machine. Playwright's 60s default expires mid-build and reports it as a
-	// server that never came up; even 180s was not enough headroom.
+	// A full build prerenders ~50 pages before preview can answer. Measured: ~45s in the Linux
+	// container CI mirrors, 2m17s warm on a Windows dev machine, and 5m49s cold there with Docker
+	// Desktop running. Playwright's 60s default expires mid-build and reports it as a server that
+	// never came up, which sends you debugging the wrong thing entirely.
 	webServer: {
 		command: 'npm run build && npm run preview',
 		port: 4173,
-		timeout: 300_000,
+		timeout: 600_000,
 		reuseExistingServer: !process.env.CI
 	},
 	use: {

@@ -235,7 +235,10 @@
 				>
 					<span>{option.label}</span>
 					{#if option.count !== undefined}
+						<!-- Facet counts move whenever a status is edited, so the visual baseline masks
+						     them by this hook rather than selecting on utility classes. -->
 						<span
+							data-testid="option-count"
 							class="font-mono text-xs"
 							class:text-ink-muted={index !== activeIndex}
 							class:text-accent-ink={index === activeIndex}>{option.count}</span
