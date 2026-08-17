@@ -7,13 +7,16 @@
 		description: string;
 		canonicalPath: string;
 		type?: 'website' | 'article';
+		/** Absolute-from-root path to a card image, e.g. /og/my-post.png. */
+		imagePath?: string;
 		jsonLd?: string;
 	}
 
-	let { title, description, canonicalPath, type = 'website', jsonLd }: Props = $props();
+	let { title, description, canonicalPath, type = 'website', imagePath, jsonLd }: Props = $props();
 
 	const origin = $derived(page.url.origin);
 	const canonical = $derived(`${origin}${canonicalPath}`);
+	const image = $derived(imagePath ? `${origin}${imagePath}` : undefined);
 	const alternates = $derived(
 		(['en', 'de'] as const).map((locale) => ({
 			locale,
@@ -34,7 +37,14 @@
 	<meta property="og:description" content={description} />
 	<meta property="og:type" content={type} />
 	<meta property="og:url" content={canonical} />
-	<meta name="twitter:card" content="summary_large_image" />
+	{#if image}
+		<!-- twitter:card promises a large image below, so without one the card renders as an empty
+		     frame. og:image is what fills it; twitter reads og:image when twitter:image is absent. -->
+		<meta property="og:image" content={image} />
+		<meta property="og:image:width" content="1200" />
+		<meta property="og:image:height" content="630" />
+	{/if}
+	<meta name="twitter:card" content={image ? 'summary_large_image' : 'summary'} />
 	{#if jsonLd}
 		<!-- jsonLd comes only from jsonld.ts, which escapes < before returning — never user input. -->
 		<!-- eslint-disable-next-line svelte/no-at-html-tags, no-useless-escape -->

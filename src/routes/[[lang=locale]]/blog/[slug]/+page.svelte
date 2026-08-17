@@ -41,6 +41,7 @@
 	description={translation.excerpt}
 	{canonicalPath}
 	type="article"
+	imagePath={`/og/${locale}/${post.slug}.png`}
 	{jsonLd}
 />
 
@@ -49,7 +50,15 @@
 		{t(locale, 'nav.blog')}
 	</a>
 
-	<Text as="h1" class="mt-4">{translation.title}</Text>
+	<!-- The other half of the pair named in PostCard: same view-transition-name, so navigating from
+	     the index morphs that card's cover into this header instead of cross-fading the page. -->
+	<div
+		aria-hidden="true"
+		class="mt-4 h-40 w-full rounded-(--radius-card)"
+		style="view-transition-name: cover-{post.slug}; background: linear-gradient(135deg, {post.coverColor}, color-mix(in oklab, {post.coverColor} 55%, white))"
+	></div>
+
+	<Text as="h1" class="mt-6">{translation.title}</Text>
 
 	<div class="mt-3 flex flex-wrap items-center gap-2 text-sm text-ink-muted">
 		<span>{post.author.name}</span>

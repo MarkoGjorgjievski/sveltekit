@@ -43,14 +43,23 @@ jobs:
 
   e2e:
     runs-on: ubuntu-latest
+    # Runs inside the SAME image scripts/snapshots.sh generates baselines in, and the tag must be
+    # kept in step with the installed @playwright/test version. Font rasterisation differs between
+    # this image and a bare ubuntu-latest runner, so a baseline produced in one does not match a
+    # screenshot taken in the other — the visual spec failed on exactly that before this changed.
+    # Browsers are preinstalled here, so there is no install step and no --with-deps.
+    container:
+      image: mcr.microsoft.com/playwright:v1.62.1-noble
+      # Chromium needs a real /dev/shm; the default 64 MB causes tab crashes under load.
+      options: --ipc=host
     steps:
       - uses: actions/checkout@v5
+      # The image ships its own Node, which is not the version .nvmrc pins. Pinning here keeps
+      # every job on one Node while still inheriting the image's browsers and fonts.
       - uses: actions/setup-node@v5
-        with: { node-version-file: '.nvmrc', cache: npm }
+        with: { node-version-file: '.nvmrc' }
       - run: npm ci
-      - run: npx playwright install --with-deps chromium
-      # Not `npm run test:e2e` — that script reinstalls browsers, which the step above
-      # already did with the system dependencies CI needs.
+      # Not `npm run test:e2e` — that script reinstalls browsers the image already has.
       - run: npx playwright test
       - uses: actions/upload-artifact@v5
         if: ${{ !cancelled() }}
