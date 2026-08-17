@@ -80,5 +80,7 @@
 	"channel.social": "Social",
 	"channel.push": "Push",
 	"combobox.noMatches": "No matches",
-	"combobox.resultCount": "{count} options available"
+	"combobox.resultCount": "{count} options available",
+	"nav.themeToDark": "Switch to dark theme",
+	"nav.themeToLight": "Switch to light theme"
 }

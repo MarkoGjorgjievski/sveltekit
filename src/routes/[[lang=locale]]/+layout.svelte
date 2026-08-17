@@ -65,8 +65,42 @@
 	// were on — so consult it in the browser and fall back to the path on the server.
 	const search = $derived(browser ? page.url.search : '');
 
-	// Where the theme-toggle action should send the browser back to after it flips the cookie.
+	// Where the theme-toggle action should send the browser back to after it flips the cookie —
+	// used only on the no-JavaScript path, where the action really does redirect.
 	const redirectTo = $derived(page.url.pathname + search);
+
+	// Seeded once from the server-rendered value and owned by the client thereafter. Deliberately
+	// not `$derived(data.theme)`: the layout load reads `locals.theme`, which SvelteKit cannot
+	// track, so on a client-side navigation `data.theme` can still describe the theme the tab was
+	// opened with — and a derived would then snap the icon back while the page stayed the other
+	// colour. This layout instance survives those navigations, so plain state is the honest model.
+	// svelte-ignore state_referenced_locally
+	let theme = $state<'light' | 'dark'>(data.theme);
+	// Hand-written rather than `use:enhance`. This layout wraps the whole public surface, and
+	// pulling $app/forms into the entry chunk for a single fire-and-forget POST cost 550 B of the
+	// landing budget — the dashboard already imports it, where the form machinery earns its place.
+	// Without JavaScript this handler never runs and the browser submits the form normally.
+	async function flipTheme(event: SubmitEvent) {
+		event.preventDefault();
+
+		theme = theme === 'dark' ? 'light' : 'dark';
+		// hooks.server.ts writes this attribute for full document responses; here the client owns
+		// it, and the POST still lands so the cookie agrees on the next real load.
+		document.documentElement.dataset.theme = theme;
+
+		const form = event.currentTarget as HTMLFormElement;
+		// redirect: 'manual' — the action answers 303 back to this page, and following it would be
+		// the full navigation this exists to avoid. Set-Cookie still applies.
+		await fetch(form.action, {
+			method: 'POST',
+			body: new FormData(form),
+			redirect: 'manual'
+		}).catch(() => {
+			// A failed toggle is not worth surfacing; the next real load re-reads the cookie.
+		});
+	}
+
+	const themeLabel = $derived(t(locale, theme === 'dark' ? 'nav.themeToLight' : 'nav.themeToDark'));
 
 	// Same page, other locale — swap only the leading /en or /de segment.
 	const otherLocalePath = $derived(`${swapLocale(page.url.pathname, otherLocale)}${search}`);
@@ -115,10 +149,46 @@
 			</a>
 			<!-- eslint-enable svelte/no-navigation-without-resolve -->
 
-			<form method="POST" action={`/${locale}/theme?/theme`}>
+			<!--
+				Still a real form posting to a real action, so the toggle works with JavaScript off —
+				that is what the cookie-based, flicker-free theme buys, and it should not be traded away
+				for an icon. The submit handler only upgrades it: with JS the swap is immediate and the
+				303 is never followed, because a full navigation to repaint one attribute is exactly the
+				sluggishness this replaces.
+			-->
+			<form method="POST" action={`/${locale}/theme?/theme`} onsubmit={flipTheme}>
 				<input type="hidden" name="redirectTo" value={redirectTo} />
-				<Button type="submit" variant="ghost" size="sm">
-					{t(locale, 'nav.toggleTheme')}
+				<Button type="submit" variant="ghost" size="sm" ariaLabel={themeLabel}>
+					<!-- The icon shows the theme the click leads TO, matching the label. -->
+					{#if theme === 'dark'}
+						<svg
+							aria-hidden="true"
+							viewBox="0 0 24 24"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="2"
+							stroke-linecap="round"
+							class="h-4 w-4"
+						>
+							<circle cx="12" cy="12" r="4" />
+							<path
+								d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"
+							/>
+						</svg>
+					{:else}
+						<svg
+							aria-hidden="true"
+							viewBox="0 0 24 24"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="2"
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							class="h-4 w-4"
+						>
+							<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z" />
+						</svg>
+					{/if}
 				</Button>
 			</form>
 		</div>

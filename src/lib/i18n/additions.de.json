@@ -80,5 +80,7 @@
 	"channel.social": "Social",
 	"channel.push": "Push",
 	"combobox.noMatches": "Keine Treffer",
-	"combobox.resultCount": "{count} Optionen verfügbar"
+	"combobox.resultCount": "{count} Optionen verfügbar",
+	"nav.themeToDark": "Zu dunklem Design wechseln",
+	"nav.themeToLight": "Zu hellem Design wechseln"
 }

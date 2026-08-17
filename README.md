@@ -203,6 +203,12 @@ missing German key fails the build rather than silently falling back to English.
 - **The visual baseline masks facet counts.** The authenticated suite edits statuses against the
   same in-memory store and runs first, so an unmasked shot would fail over "Draft 23" reading 22.
   What it pins is the widget's chrome, verified by a 4px padding change failing it.
+- **Dark mode on prerendered pages needs JavaScript.** `hooks.server.ts` writes `data-theme` from
+  the cookie, but that only happens for responses rendered per request — the public surface is
+  static HTML whose attribute was fixed at build time. A small inline script in `app.html` applies
+  the cookie before first paint, so there is no flash, but with scripting disabled those pages
+  render light. The toggle itself still works without JavaScript on server-rendered routes, since
+  it is a real form posting to a real action.
 - **The items store is in-memory and per-process.** Mutations do not survive a restart and are not
   shared between serverless instances. That is the right shape for a fixture-backed take-home, and
   the wrong shape for anything real.

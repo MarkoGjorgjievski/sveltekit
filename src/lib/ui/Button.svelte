@@ -9,6 +9,8 @@
 		disabled?: boolean;
 		href?: string;
 		class?: string;
+		/** Required when the button's content is an icon: it is then the only accessible name. */
+		ariaLabel?: string;
 		children: Snippet;
 		onclick?: (event: MouseEvent) => void;
 	}
@@ -20,6 +22,7 @@
 		disabled = false,
 		href,
 		class: extra,
+		ariaLabel,
 		children,
 		onclick
 	}: Props = $props();
@@ -46,7 +49,9 @@
 	<!-- href is caller-supplied and may be internal or external, so resolve() cannot be
 	     enforced without breaking the href?: string contract this component promises. -->
 	<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
-	<a {href} class={className}>{@render children()}</a>
+	<a {href} class={className} aria-label={ariaLabel}>{@render children()}</a>
 {:else}
-	<button {type} {disabled} class={className} {onclick}>{@render children()}</button>
+	<button {type} {disabled} class={className} aria-label={ariaLabel} {onclick}
+		>{@render children()}</button
+	>
 {/if}
