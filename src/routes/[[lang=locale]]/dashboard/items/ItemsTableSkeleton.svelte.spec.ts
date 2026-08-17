@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { render } from 'vitest-browser-svelte';
 import ItemsTableSkeleton from './ItemsTableSkeleton.svelte';
-import { PAGER_HEIGHT_PX, reservedResultsHeightPx, ROW_HEIGHT_PX } from './table-metrics';
+import {
+	HEADER_HEIGHT_PX,
+	PAGER_HEIGHT_PX,
+	reservedResultsHeightPx,
+	ROW_HEIGHT_PX
+} from './table-metrics';
 // A component rendered standalone via `render()` gets no global stylesheet — Tailwind's compiled
 // CSS is only injected into a document when something in the module graph imports it. Without
 // this import, `border-collapse`, `px-4`/`py-3`, etc. never apply and every measurement below
@@ -33,7 +38,7 @@ describe('ItemsTableSkeleton', () => {
 		expect(table?.getAttribute('aria-hidden')).toBe('true');
 
 		// The pager placeholder that follows the table is equally pure shape, not information.
-		const pagerPlaceholder = screen.container.querySelector('table + div');
+		const pagerPlaceholder = screen.container.querySelector('[data-testid="items-skeleton-pager"]');
 		expect(pagerPlaceholder?.getAttribute('aria-hidden')).toBe('true');
 	});
 
@@ -45,21 +50,21 @@ describe('ItemsTableSkeleton', () => {
 		const measuredHeight = table.getBoundingClientRect().height;
 
 		// The table itself only ever covers the header + rows — the summary line and the pager's
-		// nav row live in the sibling placeholder div measured separately below. Measured directly:
-		// 7 rows render at exactly 360px (45px each, including the header row), which matches
-		// ROW_HEIGHT_PX * 8 to the pixel — confirmed at a second row count (3 rows -> 180px =
-		// ROW_HEIGHT_PX * 4) to rule out coincidence. The 2px tolerance absorbs sub-pixel rounding
+		// nav row live in the sibling placeholder div measured separately below. The header is a
+		// text line (45px) while a body row is sized by the status select at h-8 (57px), so the two
+		// are counted separately — measured against the real table, whose rows are a uniform 57px
+		// now that names are truncated to one line. The 2px tolerance absorbs sub-pixel rounding
 		// at the table's outer border, not a fudge for a real mismatch — if this ever drifts
 		// because `py-3` or the Skeleton height changes on one side but not the other,
 		// ROW_HEIGHT_PX must be corrected to match reality, not the tolerance widened.
-		const expectedHeight = ROW_HEIGHT_PX * (rows + 1);
+		const expectedHeight = HEADER_HEIGHT_PX + ROW_HEIGHT_PX * rows;
 		expect(Math.abs(measuredHeight - expectedHeight)).toBeLessThanOrEqual(2);
 	});
 
 	it('renders the pager placeholder at the real height PAGER_HEIGHT_PX predicts, not just the value it was transcribed from', async () => {
 		const screen = render(ItemsTableSkeleton, { rows: 3 });
 
-		const placeholder = screen.container.querySelector('table + div')!;
+		const placeholder = screen.container.querySelector('[data-testid="items-skeleton-pager"]')!;
 		const summaryLine = placeholder.children[0] as HTMLElement;
 		const navRow = placeholder.children[1] as HTMLElement;
 		const summaryRect = summaryLine.getBoundingClientRect();
@@ -81,7 +86,7 @@ describe('ItemsTableSkeleton', () => {
 		const screen = render(ItemsTableSkeleton, { rows });
 
 		const table = screen.container.querySelector('table')!;
-		const placeholder = screen.container.querySelector('table + div')!;
+		const placeholder = screen.container.querySelector('[data-testid="items-skeleton-pager"]')!;
 		const totalHeight =
 			placeholder.getBoundingClientRect().bottom - table.getBoundingClientRect().top;
 

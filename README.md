@@ -22,10 +22,18 @@ npm run dev
 Node is pinned by `.nvmrc` (22.23.2) and `.npmrc` sets `engine-strict=true`, so a mismatched Node
 fails the install rather than producing a confusing error later.
 
+Two environment variables, both documented in `.env.example`; copy it to `.env` to set them
+locally.
+
 `SESSION_SECRET` signs session cookies. Locally it falls back to a development value, so nothing
 is needed to run the app. It is **required** on a real Vercel deployment: the resolver throws when
 `VERCEL_ENV === 'production'` and no secret is set, rather than silently signing with a value that
-is committed to this repository. Copy `.env.example` to `.env` to override it locally.
+is committed to this repository.
+
+`PUBLIC_SITE_URL` is the origin baked into prerendered pages **at build time** — canonical links,
+hreflang alternates, sitemap entries and `og:image` URLs. It has to be set in the deployment
+environment, because a production build without it falls back to `http://localhost:5173` and ships
+a site whose every canonical URL points at a developer's machine.
 
 ## 2. Demo credentials
 
@@ -195,6 +203,12 @@ missing German key fails the build rather than silently falling back to English.
 - **The visual baseline masks facet counts.** The authenticated suite edits statuses against the
   same in-memory store and runs first, so an unmasked shot would fail over "Draft 23" reading 22.
   What it pins is the widget's chrome, verified by a 4px padding change failing it.
+- **Dark mode on prerendered pages needs JavaScript.** `hooks.server.ts` writes `data-theme` from
+  the cookie, but that only happens for responses rendered per request — the public surface is
+  static HTML whose attribute was fixed at build time. A small inline script in `app.html` applies
+  the cookie before first paint, so there is no flash, but with scripting disabled those pages
+  render light. The toggle itself still works without JavaScript on server-rendered routes, since
+  it is a real form posting to a real action.
 - **The items store is in-memory and per-process.** Mutations do not survive a restart and are not
   shared between serverless instances. That is the right shape for a fixture-backed take-home, and
   the wrong shape for anything real.

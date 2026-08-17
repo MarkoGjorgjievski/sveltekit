@@ -6,6 +6,7 @@ import { parseQuery } from '$lib/url/query-codec';
 import { ITEM_STATUSES } from '$lib/schemas/item';
 import type { ItemPage } from '$lib/server/data/items.repo';
 import type { Actions, PageServerLoad } from './$types';
+import { localeFromParams } from '$lib/i18n/locale';
 
 export const config = { runtime: 'nodejs22.x' };
 export const prerender = false;
@@ -24,13 +25,13 @@ async function loadItems(query: ReturnType<typeof parseQuery>): Promise<ItemsRes
 	}
 }
 
-export const load: PageServerLoad = ({ url, locals, depends }) => {
+export const load: PageServerLoad = ({ params, url, locals, depends }) => {
 	depends('app:items');
 	const query = parseQuery(url.searchParams);
 
 	return {
 		query,
-		locale: locals.locale,
+		locale: localeFromParams(params.lang, locals.locale),
 		canEdit: can(locals.user, 'item:update'),
 		result: loadItems(query) // deliberately NOT awaited — this is the streamed part
 	};

@@ -100,19 +100,40 @@
 	<label class="sr-only" for={`status-${item.id}`}>
 		{t(locale, 'dashboard.items.editStatus', { name: item.name })}
 	</label>
-	<select
-		id={`status-${item.id}`}
-		name="status"
-		value={shown}
-		disabled={!canEdit}
-		onchange={() => formEl?.requestSubmit()}
-		data-testid={`status-${item.id}`}
-		class="w-full appearance-none border-0 bg-transparent p-0 text-sm text-ink focus-visible:rounded-(--radius-control) focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent enabled:cursor-pointer enabled:hover:text-accent-ink disabled:cursor-not-allowed disabled:opacity-60"
-	>
-		{#each ITEM_STATUSES as status (status)}
-			<option value={status}>{t(locale, `status.${status}`)}</option>
-		{/each}
-	</select>
+	<!--
+		Bordered rather than borderless. Styled as text it read as a label, so the one interactive
+		control in the table looked like data — and a viewer could not tell that a disabled control
+		was even a control. The chevron is the affordance a native select loses to appearance-none.
+
+		The height here is what ROW_HEIGHT_PX in table-metrics.ts reserves for. Changing h-8 or the
+		cell padding changes the real row height, the skeleton under-reserves, and the layout shift
+		streaming exists to avoid comes back — which is why a test measures the rendered height.
+	-->
+	<div class="relative">
+		<select
+			id={`status-${item.id}`}
+			name="status"
+			value={shown}
+			disabled={!canEdit}
+			onchange={() => formEl?.requestSubmit()}
+			data-testid={`status-${item.id}`}
+			class="block h-8 w-full appearance-none rounded-(--radius-control) border border-border-strong bg-surface pr-7 pl-2 text-sm text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent enabled:cursor-pointer enabled:hover:border-accent disabled:cursor-not-allowed disabled:bg-surface-muted disabled:opacity-70"
+		>
+			{#each ITEM_STATUSES as status (status)}
+				<option value={status}>{t(locale, `status.${status}`)}</option>
+			{/each}
+		</select>
+		<svg
+			aria-hidden="true"
+			viewBox="0 0 20 20"
+			class="pointer-events-none absolute top-1/2 right-2 h-4 w-4 -translate-y-1/2 text-ink-muted"
+		>
+			<path
+				fill="currentColor"
+				d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.168l3.71-3.938a.75.75 0 1 1 1.08 1.04l-4.25 4.5a.75.75 0 0 1-1.08 0l-4.25-4.5a.75.75 0 0 1 .02-1.06Z"
+			/>
+		</svg>
+	</div>
 	<!-- The onchange auto-submit above is the enhancement; without JavaScript neither `use:enhance`
 	     nor onchange run, so this is the only way to submit a changed selection. `<noscript>`
 	     content is never parsed into the DOM when scripting is enabled, so it adds no extra tab

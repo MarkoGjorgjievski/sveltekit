@@ -30,6 +30,18 @@ jobs:
         with: { node-version-file: '.nvmrc', cache: npm }
       - run: npm ci
       - run: npm run build
+      # A link from a prerendered page to a guarded route makes the crawler request it at build
+      # time, where there is no session. The guard in hooks.server.ts answers with a redirect, and
+      # SvelteKit writes that redirect out as a static file which then shadows the real route and
+      # bounces every visitor to /login — signed in or not. rel="external" keeps such links out of
+      # the crawl; this makes a regression fail the build instead of shipping a dead dashboard.
+      - name: No guarded route may be baked as a prerendered redirect
+        run: |
+          if grep -rlE 'location[.]href="[^"]*/login' .svelte-kit/output/prerendered 2>/dev/null; then
+            echo "::error::A guarded route was prerendered as a redirect to /login"
+            exit 1
+          fi
+
       # A prerendered sitemap/robots bakes url.origin at build time. Without
       # kit.prerender.origin that is the placeholder host, which would ship
       # crawler files pointing at a domain that does not exist.

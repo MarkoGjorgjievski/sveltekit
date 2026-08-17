@@ -18,6 +18,15 @@
 	// requests during SSR, leaking one user's toast into another user's response.
 	setContext(TOAST_KEY, createToastQueue());
 
+	// hooks.server.ts substitutes %lang% into the opening <html> tag, which only happens for a full
+	// document response — a client-side navigation between locales cannot go through it, so without
+	// this the attribute keeps announcing the language the tab was opened in. That is a correctness
+	// problem for screen readers and for the browser's own hyphenation and translation prompts,
+	// not a cosmetic one.
+	$effect(() => {
+		document.documentElement.lang = locale;
+	});
+
 	// Cross-document-style transitions for client-side navigations. Returning a promise makes
 	// SvelteKit wait for the transition to be ready before swapping the DOM; resolving inside the
 	// callback and then awaiting navigation.complete is the order the API requires.
@@ -56,17 +65,79 @@
 	// were on — so consult it in the browser and fall back to the path on the server.
 	const search = $derived(browser ? page.url.search : '');
 
-	// Where the theme-toggle action should send the browser back to after it flips the cookie.
+	// Where the theme-toggle action should send the browser back to after it flips the cookie —
+	// used only on the no-JavaScript path, where the action really does redirect.
 	const redirectTo = $derived(page.url.pathname + search);
+
+	// Seeded once from the server-rendered value and owned by the client thereafter. Deliberately
+	// not `$derived(data.theme)`: the layout load reads `locals.theme`, which SvelteKit cannot
+	// track, so on a client-side navigation `data.theme` can still describe the theme the tab was
+	// opened with — and a derived would then snap the icon back while the page stayed the other
+	// colour. This layout instance survives those navigations, so plain state is the honest model.
+	// svelte-ignore state_referenced_locally
+	let theme = $state<'light' | 'dark'>(data.theme);
+	// Hand-written rather than `use:enhance`. This layout wraps the whole public surface, and
+	// pulling $app/forms into the entry chunk for a single fire-and-forget POST cost 550 B of the
+	// landing budget — the dashboard already imports it, where the form machinery earns its place.
+	// Without JavaScript this handler never runs and the browser submits the form normally.
+	async function flipTheme(event: SubmitEvent) {
+		event.preventDefault();
+
+		theme = theme === 'dark' ? 'light' : 'dark';
+		// hooks.server.ts writes this attribute for full document responses; here the client owns
+		// it, and the POST still lands so the cookie agrees on the next real load.
+		document.documentElement.dataset.theme = theme;
+
+		const form = event.currentTarget as HTMLFormElement;
+		// redirect: 'manual' — the action answers 303 back to this page, and following it would be
+		// the full navigation this exists to avoid. Set-Cookie still applies.
+		await fetch(form.action, {
+			method: 'POST',
+			body: new FormData(form),
+			redirect: 'manual'
+		}).catch(() => {
+			// A failed toggle is not worth surfacing; the next real load re-reads the cookie.
+		});
+	}
+
+	const themeLabel = $derived(t(locale, theme === 'dark' ? 'nav.themeToLight' : 'nav.themeToDark'));
 
 	// Same page, other locale — swap only the leading /en or /de segment.
 	const otherLocalePath = $derived(`${swapLocale(page.url.pathname, otherLocale)}${search}`);
 
 	// Home, Blog, and Search all resolve through $app/paths now that every route id exists.
+	//
+	// Dashboard points straight at the items table and is shown to everyone, rather than swapping
+	// between "Sign in" and "Dashboard" depending on the session. This layout wraps the prerendered
+	// public pages, so their HTML is built once with no request and no cookie — a session-dependent
+	// label there would be baked as "signed out" for every visitor, the same trap the theme
+	// attribute fell into. An anonymous click is not a dead end either: the guard in
+	// hooks.server.ts redirects to login with redirectTo, and login returns the user here.
 	const navLinks = $derived([
 		{ href: home, label: t(locale, 'nav.home') },
-		{ href: resolve('/[[lang=locale]]/blog', { lang: locale }), label: t(locale, 'nav.blog') },
-		{ href: resolve('/[[lang=locale]]/search', { lang: locale }), label: t(locale, 'nav.search') }
+		{
+			href: resolve('/[[lang=locale]]/blog', { lang: locale }),
+			label: t(locale, 'nav.blog')
+		},
+		{
+			href: resolve('/[[lang=locale]]/search', { lang: locale }),
+			label: t(locale, 'nav.search')
+		},
+		{
+			href: resolve('/[[lang=locale]]/dashboard/items', { lang: locale }),
+			label: t(locale, 'nav.dashboard'),
+			// rel="external" is load-bearing, not a hint. This layout is rendered into prerendered
+			// pages, and SvelteKit's crawler follows the links it finds there. At build time there is
+			// no session, so crawling this one hit the guard in hooks.server.ts, and SvelteKit wrote
+			// the resulting redirect out as a STATIC FILE at en/dashboard/items.html. That file then
+			// shadows the real route at runtime and bounces every visitor to /login — including one
+			// who has just signed in successfully. `prerender = false` on the route does not save
+			// you: the redirect comes from `handle`, before the route's own config is ever consulted.
+			//
+			// Marking the link external takes it out of the crawl, and entering an authenticated
+			// area with a full document load is the right behaviour anyway.
+			external: true
+		}
 	]);
 </script>
 
@@ -84,12 +155,21 @@
 </a>
 
 <header class="border-b border-border bg-surface">
-	<Container class="flex h-16 items-center justify-between gap-4">
+	<!-- Wraps on small screens. A logo, four nav links, the locale switch and the theme toggle do
+	     not fit a 390px viewport on one line, and a fixed height made the whole page scroll
+	     sideways rather than the header simply taking a second row. -->
+	<Container
+		class="flex min-h-16 flex-wrap items-center justify-between gap-x-4 gap-y-2 py-2 sm:flex-nowrap"
+	>
 		<a href={home} class="text-lg font-semibold text-ink">Demo Co.</a>
 
 		<nav class="flex items-center gap-6">
 			{#each navLinks as link (link.href)}
-				<a href={link.href} class="text-sm font-medium text-ink-muted hover:text-ink">
+				<a
+					href={link.href}
+					rel={link.external ? 'external' : undefined}
+					class="text-sm font-medium text-ink-muted hover:text-ink"
+				>
 					{link.label}
 				</a>
 			{/each}
@@ -106,10 +186,46 @@
 			</a>
 			<!-- eslint-enable svelte/no-navigation-without-resolve -->
 
-			<form method="POST" action={`/${locale}/theme?/theme`}>
+			<!--
+				Still a real form posting to a real action, so the toggle works with JavaScript off —
+				that is what the cookie-based, flicker-free theme buys, and it should not be traded away
+				for an icon. The submit handler only upgrades it: with JS the swap is immediate and the
+				303 is never followed, because a full navigation to repaint one attribute is exactly the
+				sluggishness this replaces.
+			-->
+			<form method="POST" action={`/${locale}/theme?/theme`} onsubmit={flipTheme}>
 				<input type="hidden" name="redirectTo" value={redirectTo} />
-				<Button type="submit" variant="ghost" size="sm">
-					{t(locale, 'nav.toggleTheme')}
+				<Button type="submit" variant="ghost" size="sm" ariaLabel={themeLabel}>
+					<!-- The icon shows the theme the click leads TO, matching the label. -->
+					{#if theme === 'dark'}
+						<svg
+							aria-hidden="true"
+							viewBox="0 0 24 24"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="2"
+							stroke-linecap="round"
+							class="h-4 w-4"
+						>
+							<circle cx="12" cy="12" r="4" />
+							<path
+								d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"
+							/>
+						</svg>
+					{:else}
+						<svg
+							aria-hidden="true"
+							viewBox="0 0 24 24"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="2"
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							class="h-4 w-4"
+						>
+							<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z" />
+						</svg>
+					{/if}
 				</Button>
 			</form>
 		</div>

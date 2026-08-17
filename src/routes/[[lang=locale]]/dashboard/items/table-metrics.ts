@@ -26,7 +26,11 @@
  * the taller, worst-case shape (a resolved page with `pageCount === 1` is shorter than reserved,
  * which the floor already tolerates by design), not the shape every resolved page takes.
  */
-export const ROW_HEIGHT_PX = 45; // py-3 (24px) + text-sm line-height (20px) + border-b (1px)
+// The header holds text, so it is still a text line tall.
+export const HEADER_HEIGHT_PX = 45; // py-3 (24px) + text-sm line-height (20px) + border-b (1px)
+// A body row is sized by the tallest thing in it, which is the status select at h-8. Names are
+// truncated to one line precisely so this is a constant rather than a function of the text.
+export const ROW_HEIGHT_PX = 57; // py-3 (24px) + select h-8 (32px) + border-b (1px)
 export const SUMMARY_HEIGHT_PX = 32; // mt-3 (12px) + text-sm line-height (20px)
 // gap-3 (12px) between the summary line and the pager's nav row, plus the nav row's own height
 // (h-8 links/spans = 32px). Measured directly in a real browser at the test viewport (414px wide,
@@ -38,5 +42,5 @@ export const PAGER_HEIGHT_PX = 44;
 
 /** Header row + `rows` body rows + the summary line + the pager's nav row beneath the table. */
 export function reservedResultsHeightPx(rows: number): number {
-	return ROW_HEIGHT_PX * (rows + 1) + SUMMARY_HEIGHT_PX + PAGER_HEIGHT_PX;
+	return HEADER_HEIGHT_PX + ROW_HEIGHT_PX * rows + SUMMARY_HEIGHT_PX + PAGER_HEIGHT_PX;
 }

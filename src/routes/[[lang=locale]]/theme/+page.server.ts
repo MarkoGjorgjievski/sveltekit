@@ -19,7 +19,16 @@ export const actions: Actions = {
 		const redirectTo = data.get('redirectTo');
 		const next = cookies.get('theme') === 'dark' ? 'light' : 'dark';
 
-		cookies.set('theme', next, { path: '/', maxAge: 60 * 60 * 24 * 365, sameSite: 'lax' });
+		// httpOnly is explicitly OFF, against SvelteKit's default. This is a display preference, not
+		// a credential, and the inline script in app.html has to be able to read it: the public
+		// surface is prerendered, so its data-theme attribute is frozen at build time and the cookie
+		// can only reach those pages through the client.
+		cookies.set('theme', next, {
+			path: '/',
+			maxAge: 60 * 60 * 24 * 365,
+			sameSite: 'lax',
+			httpOnly: false
+		});
 
 		const fallback = `/${locals.locale}`;
 		const target =

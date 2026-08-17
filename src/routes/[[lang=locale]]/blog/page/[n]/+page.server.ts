@@ -2,6 +2,7 @@ import { error } from '@sveltejs/kit';
 import { listPosts, POSTS_PER_PAGE } from '$lib/server/data/posts.repo';
 import { posts } from '$lib/server/data/fixtures';
 import type { EntryGenerator, PageServerLoad } from './$types';
+import { localeFromParams } from '$lib/i18n/locale';
 
 export const prerender = true;
 
@@ -26,5 +27,5 @@ export const load: PageServerLoad = ({ params, locals }) => {
 	const result = listPosts(requested);
 	if (result.page !== requested) error(404, 'No such page');
 
-	return { locale: locals.locale, ...result };
+	return { locale: localeFromParams(params.lang, locals.locale), ...result };
 };

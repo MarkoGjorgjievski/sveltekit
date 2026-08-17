@@ -4,6 +4,22 @@
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
 		<meta name="text-scale" content="scale" />
+		<script>
+			// %theme% above is substituted by hooks.server.ts from the cookie — but only for responses
+			// that are actually rendered per request. The whole public surface is prerendered, so its
+			// attribute is frozen at whatever the build saw, which is always "light". Without this the
+			// cookie is simply ignored on the landing page, the blog and every post.
+			//
+			// Inline and synchronous in <head> on purpose: it has to win before first paint, or the
+			// user sees a white flash on every navigation into a prerendered page. It only ever
+			// overrides with a value the server itself would have written.
+			try {
+				var theme = document.cookie.match(/(?:^|;\s*)theme=(dark|light)/);
+				if (theme) document.documentElement.dataset.theme = theme[1];
+			} catch (error) {
+				// Cookies can be blocked outright; the server-rendered default stands.
+			}
+		</script>
 		%sveltekit.head%
 	</head>
 	<body data-sveltekit-preload-data="hover">

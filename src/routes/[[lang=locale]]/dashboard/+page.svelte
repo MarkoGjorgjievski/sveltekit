@@ -12,7 +12,7 @@
 	<title>{t(locale, 'nav.dashboard')}</title>
 </svelte:head>
 
-<Container class="py-10">
+<Container size="wide" class="py-10">
 	<h1 class="text-xl font-semibold text-ink">{t(locale, 'nav.dashboard')}</h1>
 	{#if data.user}
 		<p class="mt-2 text-ink-muted">{data.user.name} · {data.user.role}</p>
