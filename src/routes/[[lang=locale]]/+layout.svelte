@@ -106,10 +106,38 @@
 	const otherLocalePath = $derived(`${swapLocale(page.url.pathname, otherLocale)}${search}`);
 
 	// Home, Blog, and Search all resolve through $app/paths now that every route id exists.
+	//
+	// Dashboard points straight at the items table and is shown to everyone, rather than swapping
+	// between "Sign in" and "Dashboard" depending on the session. This layout wraps the prerendered
+	// public pages, so their HTML is built once with no request and no cookie — a session-dependent
+	// label there would be baked as "signed out" for every visitor, the same trap the theme
+	// attribute fell into. An anonymous click is not a dead end either: the guard in
+	// hooks.server.ts redirects to login with redirectTo, and login returns the user here.
 	const navLinks = $derived([
 		{ href: home, label: t(locale, 'nav.home') },
-		{ href: resolve('/[[lang=locale]]/blog', { lang: locale }), label: t(locale, 'nav.blog') },
-		{ href: resolve('/[[lang=locale]]/search', { lang: locale }), label: t(locale, 'nav.search') }
+		{
+			href: resolve('/[[lang=locale]]/blog', { lang: locale }),
+			label: t(locale, 'nav.blog')
+		},
+		{
+			href: resolve('/[[lang=locale]]/search', { lang: locale }),
+			label: t(locale, 'nav.search')
+		},
+		{
+			href: resolve('/[[lang=locale]]/dashboard/items', { lang: locale }),
+			label: t(locale, 'nav.dashboard'),
+			// rel="external" is load-bearing, not a hint. This layout is rendered into prerendered
+			// pages, and SvelteKit's crawler follows the links it finds there. At build time there is
+			// no session, so crawling this one hit the guard in hooks.server.ts, and SvelteKit wrote
+			// the resulting redirect out as a STATIC FILE at en/dashboard/items.html. That file then
+			// shadows the real route at runtime and bounces every visitor to /login — including one
+			// who has just signed in successfully. `prerender = false` on the route does not save
+			// you: the redirect comes from `handle`, before the route's own config is ever consulted.
+			//
+			// Marking the link external takes it out of the crawl, and entering an authenticated
+			// area with a full document load is the right behaviour anyway.
+			external: true
+		}
 	]);
 </script>
 
@@ -132,7 +160,11 @@
 
 		<nav class="flex items-center gap-6">
 			{#each navLinks as link (link.href)}
-				<a href={link.href} class="text-sm font-medium text-ink-muted hover:text-ink">
+				<a
+					href={link.href}
+					rel={link.external ? 'external' : undefined}
+					class="text-sm font-medium text-ink-muted hover:text-ink"
+				>
 					{link.label}
 				</a>
 			{/each}
