@@ -51,14 +51,33 @@ worth trying as an editor to see the two failure classes kept apart.
 ## 3. Testing
 
 ```sh
-npm run test:unit -- --run   # 329 tests, 51 files (node + real-Chromium component tests)
-npm run test:e2e             # 21 Playwright specs: flows, axe, RUM, visual
-npm run check                # svelte-check, 630 files
+npm run verify               # everything below, in the order CI runs it
+```
+
+Or individually:
+
+```sh
+npm run test:unit -- --run   # 332 tests, 52 files (node + real-Chromium component tests)
+npm run test:e2e             # 29 Playwright specs: flows, i18n, theme, nav, axe, RUM, visual
+npm run check                # svelte-check, 635 files
 npm run lint                 # prettier + eslint
 npm run size                 # bundle budgets
 npx lhci autorun --config=./lighthouserc.cjs
 sh scripts/snapshots.sh      # regenerate visual baselines (Docker; see §9)
 ```
+
+After deploying, against the deployment itself:
+
+```sh
+npm run smoke -- https://your-deployment.vercel.app
+```
+
+`smoke` covers what only a real deployment can be wrong about: the origin baked into prerendered
+pages at build time, the edge endpoint's contract, the guard on the authenticated area, and the
+build-time OG images. The local suites cannot see any of it — they run against a preview whose
+origin is localhost and whose runtime is a single Node process. It exits non-zero, so it can gate
+a release; run against a build with `PUBLIC_SITE_URL` unset it fails on the canonical and the
+sitemap, which is exactly the mistake it exists to catch.
 
 `npm run test:e2e` starts its own preview server. The visual spec is skipped off Linux — see
 [known gaps](#9-known-gaps).
