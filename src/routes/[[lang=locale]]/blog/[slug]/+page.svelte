@@ -41,6 +41,7 @@
 	description={translation.excerpt}
 	{canonicalPath}
 	type="article"
+	imagePath={`/og/${locale}/${post.slug}.png`}
 	{jsonLd}
 />
 
