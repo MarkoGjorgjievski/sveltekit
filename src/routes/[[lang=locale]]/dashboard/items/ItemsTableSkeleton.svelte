@@ -23,28 +23,33 @@
 	live region (rendered alongside this component) tells screen-reader users loading is in
 	progress.
 -->
-<table aria-hidden="true" class="w-full table-fixed border-collapse">
-	<colgroup>
-		<col class="w-[70%]" />
-		<col class="w-[30%]" />
-	</colgroup>
-	<thead>
-		<tr class="border-b border-border">
-			<th class="px-4 py-3 text-left"><Skeleton height="1.25rem" width="8rem" /></th>
-			<th class="px-4 py-3 text-left"><Skeleton height="1.25rem" width="5rem" /></th>
-		</tr>
-	</thead>
-	<tbody>
-		{#each placeholders as row (row)}
+<!-- Same overflow/min-width shape as the real table, so the placeholder occupies the same box
+     rather than reflowing the moment real rows arrive. No tabindex here: the skeleton is
+     aria-hidden and must not become a keyboard stop. -->
+<div class="overflow-x-auto">
+	<table aria-hidden="true" class="w-full min-w-[68rem] table-fixed border-collapse">
+		<colgroup>
+			<col class="w-[70%]" />
+			<col class="w-[30%]" />
+		</colgroup>
+		<thead>
 			<tr class="border-b border-border">
-				<!-- 2rem, not the 1.25rem a text line would take: the real row is sized by the status
-				     select (h-8), so a text-height placeholder would under-reserve every row. -->
-				<td class="px-4 py-3"><Skeleton height="2rem" width="12rem" /></td>
-				<td class="px-4 py-3"><Skeleton height="2rem" width="4rem" /></td>
+				<th class="px-4 py-3 text-left"><Skeleton height="1.25rem" width="8rem" /></th>
+				<th class="px-4 py-3 text-left"><Skeleton height="1.25rem" width="5rem" /></th>
 			</tr>
-		{/each}
-	</tbody>
-</table>
+		</thead>
+		<tbody>
+			{#each placeholders as row (row)}
+				<tr class="border-b border-border">
+					<!-- 2rem, not the 1.25rem a text line would take: the real row is sized by the status
+				     select (h-8), so a text-height placeholder would under-reserve every row. -->
+					<td class="px-4 py-3"><Skeleton height="2rem" width="12rem" /></td>
+					<td class="px-4 py-3"><Skeleton height="2rem" width="4rem" /></td>
+				</tr>
+			{/each}
+		</tbody>
+	</table>
+</div>
 
 <!--
 	Mirrors Pager's own wrapping div (`mt-3 flex flex-col gap-3 sm:flex-row ...`) — a summary-line
@@ -55,6 +60,7 @@
 	tolerates by design (see table-metrics.ts).
 -->
 <div
+	data-testid="items-skeleton-pager"
 	class="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
 	aria-hidden="true"
 >

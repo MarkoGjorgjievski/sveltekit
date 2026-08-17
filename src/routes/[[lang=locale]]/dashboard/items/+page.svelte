@@ -86,7 +86,7 @@
 	<title>{t(locale, 'dashboard.items.title')}</title>
 </svelte:head>
 
-<Container class="py-10">
+<Container size="wide" class="py-10">
 	<h1 class="text-xl font-semibold text-ink">{t(locale, 'dashboard.items.title')}</h1>
 
 	<div class="mt-6">

@@ -155,7 +155,12 @@
 </a>
 
 <header class="border-b border-border bg-surface">
-	<Container class="flex h-16 items-center justify-between gap-4">
+	<!-- Wraps on small screens. A logo, four nav links, the locale switch and the theme toggle do
+	     not fit a 390px viewport on one line, and a fixed height made the whole page scroll
+	     sideways rather than the header simply taking a second row. -->
+	<Container
+		class="flex min-h-16 flex-wrap items-center justify-between gap-x-4 gap-y-2 py-2 sm:flex-nowrap"
+	>
 		<a href={home} class="text-lg font-semibold text-ink">Demo Co.</a>
 
 		<nav class="flex items-center gap-6">

@@ -17,7 +17,13 @@
 </svelte:head>
 
 <div class="border-b border-border bg-surface-muted">
-	<Container class="flex h-12 items-center justify-between gap-4 text-sm">
+	<!-- Wraps rather than fixing a 12-unit height: on a phone the nav and the user/sign-out group
+	     together exceed the viewport, and a fixed height forced the whole PAGE to scroll sideways
+	     instead of only the table that is meant to. -->
+	<Container
+		size="wide"
+		class="flex min-h-12 flex-wrap items-center justify-between gap-x-4 gap-y-2 py-2 text-sm"
+	>
 		<!-- Without these the items table was reachable only by typing its URL: the dashboard index
 		     showed a name and a role and linked nowhere at all. -->
 		<nav class="flex items-center gap-4" aria-label={t(locale, 'nav.dashboard')}>

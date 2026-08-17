@@ -38,7 +38,7 @@ describe('ItemsTableSkeleton', () => {
 		expect(table?.getAttribute('aria-hidden')).toBe('true');
 
 		// The pager placeholder that follows the table is equally pure shape, not information.
-		const pagerPlaceholder = screen.container.querySelector('table + div');
+		const pagerPlaceholder = screen.container.querySelector('[data-testid="items-skeleton-pager"]');
 		expect(pagerPlaceholder?.getAttribute('aria-hidden')).toBe('true');
 	});
 
@@ -64,7 +64,7 @@ describe('ItemsTableSkeleton', () => {
 	it('renders the pager placeholder at the real height PAGER_HEIGHT_PX predicts, not just the value it was transcribed from', async () => {
 		const screen = render(ItemsTableSkeleton, { rows: 3 });
 
-		const placeholder = screen.container.querySelector('table + div')!;
+		const placeholder = screen.container.querySelector('[data-testid="items-skeleton-pager"]')!;
 		const summaryLine = placeholder.children[0] as HTMLElement;
 		const navRow = placeholder.children[1] as HTMLElement;
 		const summaryRect = summaryLine.getBoundingClientRect();
@@ -86,7 +86,7 @@ describe('ItemsTableSkeleton', () => {
 		const screen = render(ItemsTableSkeleton, { rows });
 
 		const table = screen.container.querySelector('table')!;
-		const placeholder = screen.container.querySelector('table + div')!;
+		const placeholder = screen.container.querySelector('[data-testid="items-skeleton-pager"]')!;
 		const totalHeight =
 			placeholder.getBoundingClientRect().bottom - table.getBoundingClientRect().top;
 

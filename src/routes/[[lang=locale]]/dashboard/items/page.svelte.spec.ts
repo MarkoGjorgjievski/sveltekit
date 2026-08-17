@@ -210,6 +210,12 @@ describe('dashboard/items page', () => {
 		await expectFocus(screen.getByRole('button', { name: 'Apply filters' }));
 		await expectFocus(screen.getByRole('link', { name: 'Clear filters' }));
 
+		// The table's horizontal scroll container is itself a tab stop, and deliberately so: a
+		// scrollable region that cannot be focused is unreachable for anyone who cannot drag it with
+		// a pointer. It sits here, between the filters and the table, because that is where it is in
+		// the DOM.
+		await expectFocus(screen.getByRole('region', { name: 'Campaigns' }));
+
 		// Every sort header, in column order.
 		for (const name of [
 			'Name',

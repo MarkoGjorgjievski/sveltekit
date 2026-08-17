@@ -87,44 +87,62 @@
 			{/if}
 		</div>
 	{:else}
-		<table class="w-full table-fixed border-collapse">
-			<caption class="sr-only">{t(locale, 'dashboard.items.title')}</caption>
-			<!-- Status is the widest non-name column because it is the only editable one: at 10% the
+		<!--
+			Scrolls horizontally instead of compressing eight columns into a phone. min-w keeps every
+			column at a width its content actually fits in — below it the bordered status select
+			clipped its own longest label behind the chevron.
+
+			role/aria-label/tabindex are not decoration: a scrollable region that cannot be focused is
+			unreachable by keyboard, which axe flags as a serious violation and the e2e suite enforces.
+			Svelte's own a11y rule objects to tabindex on a non-interactive element and is overruled
+			here — a named, focusable region is the pattern axe and WAI both ask for, and axe is the
+			one checked against a real browser.
+		-->
+		<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+		<div
+			role="region"
+			aria-label={t(locale, 'dashboard.items.title')}
+			tabindex="0"
+			class="overflow-x-auto"
+		>
+			<table class="w-full min-w-[68rem] table-fixed border-collapse">
+				<caption class="sr-only">{t(locale, 'dashboard.items.title')}</caption>
+				<!-- Status is the widest non-name column because it is the only editable one: at 10% the
 			     bordered select clipped its own longest label ("Completed") behind the chevron. -->
-			<colgroup>
-				<col class="w-[19%]" />
-				<col class="w-[15%]" />
-				<col class="w-[9%]" />
-				<col class="w-[13%]" />
-				<col class="w-[11%]" />
-				<col class="w-[11%]" />
-				<col class="w-[8%]" />
-				<col class="w-[14%]" />
-			</colgroup>
-			<thead>
-				<tr class="border-b border-border">
-					{#each COLUMNS as column (column.key)}
-						<th
-							scope="col"
-							aria-sort={ariaSort(column.key)}
-							class={`${headerClass} ${column.numeric ? 'text-right' : 'text-left'}`}
-						>
-							<a
-								href={sortHref(column.key)}
-								data-sveltekit-noscroll
-								class={`inline-flex items-center gap-1 hover:text-ink ${query.sort === column.key ? 'text-ink' : ''}`}
-							>
-								{t(locale, column.label)}
-								<span aria-hidden="true">{arrow(column.key)}</span>
-							</a>
-						</th>
-					{/each}
-				</tr>
-			</thead>
-			<tbody>
-				{#each page.rows as item (item.id)}
+				<colgroup>
+					<col class="w-[19%]" />
+					<col class="w-[15%]" />
+					<col class="w-[9%]" />
+					<col class="w-[13%]" />
+					<col class="w-[11%]" />
+					<col class="w-[11%]" />
+					<col class="w-[8%]" />
+					<col class="w-[14%]" />
+				</colgroup>
+				<thead>
 					<tr class="border-b border-border">
-						<!--
+						{#each COLUMNS as column (column.key)}
+							<th
+								scope="col"
+								aria-sort={ariaSort(column.key)}
+								class={`${headerClass} ${column.numeric ? 'text-right' : 'text-left'}`}
+							>
+								<a
+									href={sortHref(column.key)}
+									data-sveltekit-noscroll
+									class={`inline-flex items-center gap-1 hover:text-ink ${query.sort === column.key ? 'text-ink' : ''}`}
+								>
+									{t(locale, column.label)}
+									<span aria-hidden="true">{arrow(column.key)}</span>
+								</a>
+							</th>
+						{/each}
+					</tr>
+				</thead>
+				<tbody>
+					{#each page.rows as item (item.id)}
+						<tr class="border-b border-border">
+							<!--
 							Truncated to one line, with the full name on hover and for assistive tech. Names
 							are long enough to wrap at this column width, and a wrapped name made rows 65px
 							while ROW_HEIGHT_PX reserved 45 — so the skeleton under-reserved and every row
@@ -132,22 +150,25 @@
 							reservation a fact rather than an estimate, and it is how a data table of this
 							density is normally read.
 						-->
-						<th scope="row" title={item.name} class={`${cellClass} truncate text-left font-normal`}
-							>{item.name}</th
-						>
-						<td class={cellClass}>
-							<StatusCell {item} {locale} {canEdit} {optimistic} />
-						</td>
-						<td class={cellClass}>{t(locale, `channel.${item.channel}`)}</td>
-						<td class={cellClass}>{item.owner.name}</td>
-						<td class={`${cellClass} ${numericClass}`}>{formatCurrency(item.budget, locale)}</td>
-						<td class={`${cellClass} ${numericClass}`}>{formatCurrency(item.spent, locale)}</td>
-						<td class={`${cellClass} ${numericClass}`}>{formatPercent(item.ctr, locale)}</td>
-						<td class={`${cellClass} ${numericClass}`}>{formatDate(item.updatedAt, locale)}</td>
-					</tr>
-				{/each}
-			</tbody>
-		</table>
+							<th
+								scope="row"
+								title={item.name}
+								class={`${cellClass} truncate text-left font-normal`}>{item.name}</th
+							>
+							<td class={cellClass}>
+								<StatusCell {item} {locale} {canEdit} {optimistic} />
+							</td>
+							<td class={cellClass}>{t(locale, `channel.${item.channel}`)}</td>
+							<td class={cellClass}>{item.owner.name}</td>
+							<td class={`${cellClass} ${numericClass}`}>{formatCurrency(item.budget, locale)}</td>
+							<td class={`${cellClass} ${numericClass}`}>{formatCurrency(item.spent, locale)}</td>
+							<td class={`${cellClass} ${numericClass}`}>{formatPercent(item.ctr, locale)}</td>
+							<td class={`${cellClass} ${numericClass}`}>{formatDate(item.updatedAt, locale)}</td>
+						</tr>
+					{/each}
+				</tbody>
+			</table>
+		</div>
 
 		<Pager
 			page={page.page}
