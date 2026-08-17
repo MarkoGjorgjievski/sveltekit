@@ -22,10 +22,18 @@ npm run dev
 Node is pinned by `.nvmrc` (22.23.2) and `.npmrc` sets `engine-strict=true`, so a mismatched Node
 fails the install rather than producing a confusing error later.
 
+Two environment variables, both documented in `.env.example`; copy it to `.env` to set them
+locally.
+
 `SESSION_SECRET` signs session cookies. Locally it falls back to a development value, so nothing
 is needed to run the app. It is **required** on a real Vercel deployment: the resolver throws when
 `VERCEL_ENV === 'production'` and no secret is set, rather than silently signing with a value that
-is committed to this repository. Copy `.env.example` to `.env` to override it locally.
+is committed to this repository.
+
+`PUBLIC_SITE_URL` is the origin baked into prerendered pages **at build time** — canonical links,
+hreflang alternates, sitemap entries and `og:image` URLs. It has to be set in the deployment
+environment, because a production build without it falls back to `http://localhost:5173` and ships
+a site whose every canonical URL points at a developer's machine.
 
 ## 2. Demo credentials
 
