@@ -24,6 +24,12 @@ module.exports = {
 			startServerCommand: 'npm run preview',
 			startServerReadyPattern: 'Local',
 			chromePath: chromium.executablePath(),
+			// Playwright applies container-safe flags when it launches Chromium; LHCI drives the same
+			// binary through puppeteer, which does not, so Chrome dies during startup wherever the
+			// sandbox has nothing to work with. Relaxed only under CI — a local run keeps the sandbox.
+			puppeteerLaunchOptions: process.env.CI
+				? { args: ['--no-sandbox', '--disable-dev-shm-usage'] }
+				: {},
 			url: [
 				'http://localhost:4173/en',
 				'http://localhost:4173/en/blog/accessible-combobox-from-scratch',
