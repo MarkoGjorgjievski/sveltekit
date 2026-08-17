@@ -164,16 +164,15 @@ describe('ItemsTable — keyboard parity', () => {
 	});
 });
 
-// The status column used to render a static Badge; it now renders a real <select> in its place.
-// A naive inline <select> carries its own UA border/padding/min-height (measured directly: 27px
-// tall at this project's design tokens, versus the 20px a plain text-sm line occupies) — dropped
-// into ROW_HEIGHT_PX's budget unmodified, that would silently grow every row and desync the real
-// table from ItemsTableSkeleton's pinned placeholder height, reintroducing the exact streaming
-// layout shift Stage 4 built the skeleton to prevent. StatusCell strips that chrome
-// (`appearance-none`, zero border, zero padding) specifically so the control is flush with the
-// text it replaced.
+// The status column renders a real <select>, and it is deliberately a visible control: bordered,
+// with a chevron, so the one interactive thing in the table does not read as data. That chrome has
+// a height, and the row is sized by it — ROW_HEIGHT_PX is 57 (24px padding + the select's 32px +
+// 1px border) rather than the 45px a text line would take. This test pins the control to that
+// budget, because ItemsTableSkeleton reserves against the same constant: let the select grow
+// without updating both, and the skeleton under-reserves and the streaming layout shift Stage 4
+// removed comes straight back.
 describe('ItemsTable — status select height parity', () => {
-	it("renders the status select at the same content height as a plain text-sm line, so it doesn't grow the row beyond ROW_HEIGHT_PX", async () => {
+	it('renders the status select at the height ROW_HEIGHT_PX budgets for, so the skeleton reserves the truth', async () => {
 		const rows = [makeItem()];
 		const screen = setup({}, { rows });
 
@@ -181,14 +180,11 @@ describe('ItemsTable — status select height parity', () => {
 		expect(select).not.toBeNull();
 
 		const selectHeight = select?.getBoundingClientRect().height ?? -1;
-		// 20px is text-sm's own line-height (1.25rem) — the same figure ROW_HEIGHT_PX's own comment
-		// (imported above so this test fails loudly if that budget is ever revised without checking
-		// this control still fits it) derives its 45px from (24px padding + 20px line-height + 1px
-		// border). A `select` that stays at this height contributes nothing beyond what the Badge
-		// it replaced did. Without `../../../layout.css` imported above, a stripped-down select
-		// falls back to raw UA sizing well outside this 19–21px band — verified manually against
-		// this exact markup before that import was added.
-		expect(selectHeight).toBeGreaterThanOrEqual(19);
-		expect(selectHeight).toBeLessThanOrEqual(ROW_HEIGHT_PX - 24);
+		// h-8 is 32px. The band tolerates sub-pixel rounding without tolerating a control that has
+		// quietly grown: ROW_HEIGHT_PX - 25 is 32, the most a row can give it before the reservation
+		// is wrong. Without '../../../layout.css' imported above, a select falls back to raw UA
+		// sizing well outside this band.
+		expect(selectHeight).toBeGreaterThanOrEqual(30);
+		expect(selectHeight).toBeLessThanOrEqual(ROW_HEIGHT_PX - 25);
 	});
 });

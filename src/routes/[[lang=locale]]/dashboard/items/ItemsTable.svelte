@@ -89,15 +89,17 @@
 	{:else}
 		<table class="w-full table-fixed border-collapse">
 			<caption class="sr-only">{t(locale, 'dashboard.items.title')}</caption>
+			<!-- Status is the widest non-name column because it is the only editable one: at 10% the
+			     bordered select clipped its own longest label ("Completed") behind the chevron. -->
 			<colgroup>
-				<col class="w-[20%]" />
-				<col class="w-[10%]" />
-				<col class="w-[10%]" />
-				<col class="w-[14%]" />
-				<col class="w-[11%]" />
-				<col class="w-[11%]" />
-				<col class="w-[9%]" />
+				<col class="w-[19%]" />
 				<col class="w-[15%]" />
+				<col class="w-[9%]" />
+				<col class="w-[13%]" />
+				<col class="w-[11%]" />
+				<col class="w-[11%]" />
+				<col class="w-[8%]" />
+				<col class="w-[14%]" />
 			</colgroup>
 			<thead>
 				<tr class="border-b border-border">
@@ -122,7 +124,17 @@
 			<tbody>
 				{#each page.rows as item (item.id)}
 					<tr class="border-b border-border">
-						<th scope="row" class={`${cellClass} text-left font-normal`}>{item.name}</th>
+						<!--
+							Truncated to one line, with the full name on hover and for assistive tech. Names
+							are long enough to wrap at this column width, and a wrapped name made rows 65px
+							while ROW_HEIGHT_PX reserved 45 — so the skeleton under-reserved and every row
+							was a different height depending on its text. One line per row is what makes the
+							reservation a fact rather than an estimate, and it is how a data table of this
+							density is normally read.
+						-->
+						<th scope="row" title={item.name} class={`${cellClass} truncate text-left font-normal`}
+							>{item.name}</th
+						>
 						<td class={cellClass}>
 							<StatusCell {item} {locale} {canEdit} {optimistic} />
 						</td>

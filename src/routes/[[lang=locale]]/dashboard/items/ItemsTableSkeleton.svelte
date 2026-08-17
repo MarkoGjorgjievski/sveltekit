@@ -37,8 +37,10 @@
 	<tbody>
 		{#each placeholders as row (row)}
 			<tr class="border-b border-border">
-				<td class="px-4 py-3"><Skeleton height="1.25rem" width="12rem" /></td>
-				<td class="px-4 py-3"><Skeleton height="1.25rem" width="4rem" /></td>
+				<!-- 2rem, not the 1.25rem a text line would take: the real row is sized by the status
+				     select (h-8), so a text-height placeholder would under-reserve every row. -->
+				<td class="px-4 py-3"><Skeleton height="2rem" width="12rem" /></td>
+				<td class="px-4 py-3"><Skeleton height="2rem" width="4rem" /></td>
 			</tr>
 		{/each}
 	</tbody>
