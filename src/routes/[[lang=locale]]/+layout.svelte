@@ -2,6 +2,7 @@
 	import { page } from '$app/state';
 	import { resolve } from '$app/paths';
 	import { browser } from '$app/environment';
+	import { onNavigate } from '$app/navigation';
 	import { onMount, setContext } from 'svelte';
 	import { t } from '$lib/i18n/t';
 	import { swapLocale } from '$lib/seo/paths';
@@ -16,6 +17,25 @@
 	// Context rather than a module-level store: a module-level singleton would be shared across
 	// requests during SSR, leaking one user's toast into another user's response.
 	setContext(TOAST_KEY, createToastQueue());
+
+	// Cross-document-style transitions for client-side navigations. Returning a promise makes
+	// SvelteKit wait for the transition to be ready before swapping the DOM; resolving inside the
+	// callback and then awaiting navigation.complete is the order the API requires.
+	//
+	// Both guards matter: startViewTransition is still absent in Firefox and older Safari, and
+	// animating a whole page against a user's reduced-motion preference is exactly the kind of
+	// motion that setting exists to prevent.
+	onNavigate((navigation) => {
+		if (!document.startViewTransition) return;
+		if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+		return new Promise((resolve) => {
+			document.startViewTransition(async () => {
+				resolve();
+				await navigation.complete;
+			});
+		});
+	});
 
 	// Imported dynamically, after mount, on purpose. A static import would pull web-vitals into the
 	// public initial bundle — measuring the page more slowly in order to report how slow it is —
