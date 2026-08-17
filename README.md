@@ -229,9 +229,11 @@ page to ≥ 0.95 SEO would mean making it indexable to satisfy a gate.
 
 ## 11. Time spent
 
-<!-- Replace before submitting. -->
+Around 20 hours, across five days.
 
-**TODO**
+A large part of that was spent verifying the gates rather than adding more of them — deliberately
+breaking the code to confirm each test could actually fail. That is where most of the defects
+described above were found, including two tests that passed for the wrong reason.
 
 ---
 
