@@ -286,4 +286,60 @@ describe('Combobox', () => {
 		await userEvent.keyboard('zzz');
 		await expect.element(screen.getByText('0 options available')).toBeInTheDocument();
 	});
+	it('marks selected options visibly, not only through aria-selected', async () => {
+		// The bug this covers: selection was announced to assistive tech and shown to nobody, so a
+		// filtered table gave no on-screen sign of what was filtering it.
+		const screen = render(Combobox, {
+			id: 'status',
+			label: 'Status',
+			options,
+			selected: ['draft']
+		});
+		const input = screen.getByRole('combobox', { name: 'Status' });
+		await input.click();
+
+		const tick = (value: string) =>
+			screen.container.querySelector(`#status-option-${value} svg`)!.getAttribute('class') ?? '';
+
+		expect(tick('draft')).not.toContain('invisible');
+		expect(tick('active')).toContain('invisible');
+		// Reserved rather than removed, so labels do not jump sideways as selection changes.
+		expect(screen.container.querySelectorAll('li[role=option] svg')).toHaveLength(options.length);
+	});
+
+	it('lists the selection as removable chips, drawn from all options rather than the filtered ones', async () => {
+		const screen = render(Combobox, {
+			id: 'status',
+			label: 'Status',
+			options,
+			selected: ['draft', 'active']
+		});
+
+		await expect
+			.element(screen.getByRole('button', { name: 'Remove Draft filter' }))
+			.toBeInTheDocument();
+		await expect
+			.element(screen.getByRole('button', { name: 'Remove Active filter' }))
+			.toBeInTheDocument();
+
+		// Typing narrows the list; a chip must not vanish because the user is searching elsewhere.
+		const input = screen.getByRole('combobox', { name: 'Status' });
+		await input.fill('arch');
+		await expect
+			.element(screen.getByRole('button', { name: 'Remove Draft filter' }))
+			.toBeInTheDocument();
+	});
+
+	it('removes a filter when its chip is pressed', async () => {
+		const screen = render(Combobox, {
+			id: 'status',
+			label: 'Status',
+			options,
+			selected: ['draft']
+		});
+
+		await screen.getByRole('button', { name: 'Remove Draft filter' }).click();
+
+		expect(screen.container.querySelectorAll('li > button').length).toBe(0);
+	});
 });

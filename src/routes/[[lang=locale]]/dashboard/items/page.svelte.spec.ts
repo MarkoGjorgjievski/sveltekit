@@ -204,6 +204,9 @@ describe('dashboard/items page', () => {
 		// and case-insensitive by default — without it, "Status" also matches every row's "Change
 		// status for {name}" select below, which is itself the point of that per-row name.
 		await expectFocus(screen.getByRole('combobox', { name: 'Status', exact: true }));
+		// The chip for the active status filter sits directly under its combobox and is a real
+		// button, because removing a filter has to be reachable without a pointer.
+		await expectFocus(screen.getByRole('button', { name: 'Remove Active filter' }));
 		await expectFocus(screen.getByRole('combobox', { name: 'Channel' }));
 		await expectFocus(screen.getByRole('combobox', { name: 'Tags' }));
 		await expectFocus(screen.getByLabelText('Rows per page'));

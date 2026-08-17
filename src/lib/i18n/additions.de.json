@@ -82,5 +82,6 @@
 	"combobox.noMatches": "Keine Treffer",
 	"combobox.resultCount": "{count} Optionen verfügbar",
 	"nav.themeToDark": "Zu dunklem Design wechseln",
-	"nav.themeToLight": "Zu hellem Design wechseln"
+	"nav.themeToLight": "Zu hellem Design wechseln",
+	"combobox.remove": "Filter {label} entfernen"
 }
