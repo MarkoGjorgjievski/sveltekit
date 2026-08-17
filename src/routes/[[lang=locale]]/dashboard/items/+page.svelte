@@ -7,7 +7,6 @@
 	import ItemsTableSkeleton from './ItemsTableSkeleton.svelte';
 	import ErrorRegion from './ErrorRegion.svelte';
 	import { reservedResultsHeightPx } from './table-metrics';
-	import { toSearchParams } from '$lib/url/query-codec';
 	import type { FacetCounts } from '$lib/server/data/items.repo';
 	import type { PageProps } from './$types';
 
@@ -38,46 +37,43 @@
 
 	type ItemsResult = Awaited<typeof data.result>;
 
-	// `data.result` is a NEW promise on every load — including a same-query refresh, which is what
-	// `invalidate('app:items')` triggers after every inline status edit. Awaiting it directly meant
-	// the `{#await}` block below re-entered its pending branch each time, and that unmounts the
-	// resolved branch: the table the user is working in was replaced by the skeleton for the whole
-	// round trip, keyboard focus inside the row was destroyed, and `ItemsTable`'s optimistic
-	// override map went with the component instance — so an edit still in flight on one row was
-	// discarded the moment a different row's edit resolved.
+	// `data.result` is a NEW promise on every load: a same-query refresh after an inline edit, a
+	// sort, a page change, and every debounced keystroke in the name filter. Awaiting it directly
+	// re-entered the `{#await}` pending branch each time, which unmounts the resolved branch — so
+	// the table the user was working in was replaced by the skeleton for the whole round trip.
 	//
-	// So the awaited promise is only swapped when the *query* changes. A genuine navigation
-	// (sort, filter, page) really is new content and a skeleton is the honest thing to show for it.
-	// A same-query refresh resolves into `refreshed` instead and the resolved branch prefers it, so
-	// the table is patched in place and never unmounts.
-	// Capturing only the initial `data` is the point, not an oversight: these two seed the first
-	// paint — including the server render, where no effect has run yet and `{#await}` must already
-	// have a promise to stream against — and the effect below owns every update after that.
+	// For an edit that meant losing keyboard focus in the row and discarding ItemsTable's
+	// optimistic overrides with the component instance. For search-as-you-type it meant the results
+	// blinking away on every keystroke burst, which reads as the page fighting the person typing.
+	//
+	// So the awaited promise is never swapped. It seeds the first paint — including the server
+	// render, where no effect has run yet and `{#await}` must already have a promise to stream
+	// against — and every load after that resolves into `resolved`, which the resolved branch
+	// prefers. The table is patched in place and never unmounts.
+	//
 	// svelte-ignore state_referenced_locally
 	let awaited = $state.raw(data.result);
-	// svelte-ignore state_referenced_locally
-	let awaitedKey = $state.raw(toSearchParams(data.query).toString());
-	let refreshed = $state.raw<ItemsResult | undefined>(undefined);
+	let resolved = $state.raw<ItemsResult | undefined>(undefined);
+
+	// True while a newer load is in flight and there is already something on screen to keep. The
+	// region is marked aria-busy and dimmed rather than emptied: stale-but-labelled beats blank.
+	let pending = $state(false);
 
 	$effect(() => {
-		const key = toSearchParams(data.query).toString();
 		const current = data.result;
 
-		if (key !== awaitedKey) {
-			awaitedKey = key;
-			awaited = current;
-			// Belongs to the query being left behind; keeping it would show the old page's rows
-			// under the new query until the new load resolved.
-			refreshed = undefined;
-		}
+		// Only once something is on screen. On the very first load there is nothing to keep, and
+		// the skeleton — which is what streaming exists to show — is the right answer.
+		if (resolved !== undefined) pending = true;
 
 		// `current` is captured per-run and compared against `data.result` before applying: without
-		// that guard, a slow response for an earlier navigation could resolve after a faster one
-		// for a later navigation and overwrite fresher rows and counts with stale ones.
+		// that guard, a slow response for an earlier navigation could resolve after a faster one for
+		// a later navigation and overwrite fresher rows and counts with stale ones.
 		current.then((result) => {
 			if (data.result !== current) return;
 			if (result.ok) facets = result.page.facets;
-			refreshed = result;
+			resolved = result;
+			pending = false;
 		});
 	});
 </script>
@@ -100,23 +96,29 @@
 			<p class="sr-only" role="status" aria-live="polite">{t(locale, 'common.loading')}</p>
 			<ItemsTableSkeleton rows={data.query.perPage} />
 		{:then initial}
-			<!-- `refreshed` is the same query re-read after a mutation; `initial` is the streamed
-			     first paint for this query. Preferring the former is what lets a refresh update the
-			     table in place instead of tearing the resolved branch down and rebuilding it. -->
-			{@const result = refreshed ?? initial}
-			{#if result.ok}
-				{#if result.health.dropped > 0}
-					<p
-						class="mb-4 rounded-(--radius-card) bg-warning-surface px-4 py-3 text-sm text-warning-ink"
-					>
-						{t(locale, 'dashboard.items.partialData', { count: result.health.dropped })}
-					</p>
-				{/if}
+			<!-- `resolved` is the newest load of any query; `initial` is only the streamed first
+			     paint. Preferring the former is what lets every later load update the table in place
+			     instead of tearing the resolved branch down and rebuilding it.
 
-				<ItemsTable page={result.page} query={data.query} {locale} canEdit={data.canEdit} />
-			{:else}
-				<ErrorRegion {locale} onretry={() => invalidate('app:items')} />
-			{/if}
+			     While a newer load is in flight the previous rows stay, dimmed and marked aria-busy.
+			     Blanking them on each keystroke is what made the name filter feel like it was
+			     fighting the person typing. -->
+			{@const result = resolved ?? initial}
+			<div aria-busy={pending} class="transition-opacity duration-150" class:opacity-60={pending}>
+				{#if result.ok}
+					{#if result.health.dropped > 0}
+						<p
+							class="mb-4 rounded-(--radius-card) bg-warning-surface px-4 py-3 text-sm text-warning-ink"
+						>
+							{t(locale, 'dashboard.items.partialData', { count: result.health.dropped })}
+						</p>
+					{/if}
+
+					<ItemsTable page={result.page} query={data.query} {locale} canEdit={data.canEdit} />
+				{:else}
+					<ErrorRegion {locale} onretry={() => invalidate('app:items')} />
+				{/if}
+			</div>
 		{/await}
 	</div>
 </Container>
