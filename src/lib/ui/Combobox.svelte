@@ -41,10 +41,6 @@
 	const listId = $derived(`${id}-listbox`);
 	const labelId = $derived(`${id}-label`);
 
-	// From `options`, not `visible`: typing narrows the list, and a chip must not vanish because the
-	// user is searching for something else.
-	const selectedOptions = $derived(options.filter((option) => selected.includes(option.value)));
-
 	const visible = $derived(
 		options.filter((option) => option.label.toLowerCase().includes(query.trim().toLowerCase()))
 	);
@@ -202,29 +198,6 @@
 	<p class="sr-only" role="status" aria-live="polite">
 		{open ? t(locale, 'combobox.resultCount', { count: visible.length }) : ''}
 	</p>
-
-	<!--
-		Selected values live BELOW the control rather than inside it. The input doubles as the
-		type-to-filter box, so chips placed in it would compete with the text the user is typing;
-		outside, they cost nothing and each one can carry its own remove button.
-	-->
-	{#if selectedOptions.length > 0}
-		<ul class="flex flex-wrap gap-1">
-			{#each selectedOptions as option (option.value)}
-				<li>
-					<button
-						type="button"
-						onclick={() => toggle(option.value)}
-						aria-label={t(locale, 'combobox.remove', { label: option.label })}
-						class="inline-flex items-center gap-1 rounded-full bg-accent-surface px-2 py-0.5 text-xs font-medium text-accent-ink hover:bg-accent hover:text-accent-foreground"
-					>
-						{option.label}
-						<span aria-hidden="true">×</span>
-					</button>
-				</li>
-			{/each}
-		</ul>
-	{/if}
 
 	<div
 		hidden={!open}

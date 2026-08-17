@@ -73,3 +73,44 @@ describe('FilterBar — no-JS state parity', () => {
 		await expect.element(screen.getByRole('combobox', { name: 'Tags' })).toBeInTheDocument();
 	});
 });
+
+describe('FilterBar — active filter summary', () => {
+	it('names every active filter across all three facets', async () => {
+		// The gap this covers: a shared link filtered the table while every control rendered empty,
+		// so the only on-screen account of what was filtering it was the URL.
+		const screen = render(FilterBar, {
+			query: { ...DEFAULT_QUERY, status: ['active', 'draft'], channel: ['email'], tags: ['q3'] },
+			facets: emptyFacets,
+			locale: 'en'
+		});
+
+		for (const label of ['Active', 'Draft', 'Email', 'q3']) {
+			await expect
+				.element(screen.getByRole('button', { name: `Remove ${label} filter` }))
+				.toBeInTheDocument();
+		}
+	});
+
+	it('shows nothing when no filter is applied', async () => {
+		const screen = render(FilterBar, { query: DEFAULT_QUERY, facets: emptyFacets, locale: 'en' });
+		expect(screen.container.querySelectorAll('button[aria-label^="Remove"]')).toHaveLength(0);
+	});
+
+	it('removes only the filter whose chip was pressed', async () => {
+		const { goto } = await import('$app/navigation');
+		const screen = render(FilterBar, {
+			query: { ...DEFAULT_QUERY, status: ['active', 'draft'], channel: ['email'] },
+			facets: emptyFacets,
+			locale: 'en'
+		});
+
+		await screen.getByRole('button', { name: 'Remove Draft filter' }).click();
+
+		// The surviving status and the untouched channel must both still be in the target URL —
+		// a chip that cleared its whole facet would be worse than no chip at all.
+		const target = String(vi.mocked(goto).mock.calls.at(-1)?.[0]);
+		expect(target).toContain('status=active');
+		expect(target).not.toContain('status=draft');
+		expect(target).toContain('channel=email');
+	});
+});

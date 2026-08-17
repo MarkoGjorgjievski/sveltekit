@@ -75,6 +75,27 @@
 	// input text.
 	beforeNavigate(() => clearTimeout(debounceTimer));
 
+	// Built from the query rather than from any control's internal state, so it describes the URL —
+	// which is the actual source of truth — and reuses the very handlers the comboboxes call, so a
+	// chip and a list entry cannot drift apart.
+	const activeFilters = $derived([
+		...query.status.map((value) => ({
+			key: `status:${value}`,
+			label: t(locale, `status.${value}`),
+			remove: () => handleStatusChange(query.status.filter((entry) => entry !== value))
+		})),
+		...query.channel.map((value) => ({
+			key: `channel:${value}`,
+			label: t(locale, `channel.${value}`),
+			remove: () => handleChannelChange(query.channel.filter((entry) => entry !== value))
+		})),
+		...query.tags.map((value) => ({
+			key: `tag:${value}`,
+			label: value,
+			remove: () => handleTagsChange(query.tags.filter((entry) => entry !== value))
+		}))
+	]);
+
 	function withPatch(patch: Partial<ItemQuery>) {
 		const search = toSearchParams({ ...query, ...patch, page: 1 });
 		return resolve(`/[[lang=locale]]/dashboard/items?${search}`, { lang: locale });
@@ -144,6 +165,12 @@
 	<input type="hidden" name={QUERY_PARAM.sort} value={query.sort} />
 	<input type="hidden" name={QUERY_PARAM.dir} value={query.dir} />
 
+	<!--
+		items-end keeps every label and input on one baseline. Nothing inside this row may change
+		height with the filter state: chips used to hang under each combobox, and that lifted one
+		column's input above its neighbours as soon as a filter was applied. They live in their own
+		row below now, where growing costs the controls nothing.
+	-->
 	<div class="flex flex-wrap items-end gap-3">
 		<div class="flex flex-col gap-1.5">
 			<label for="items-filter-q" class="text-sm font-medium text-ink">
@@ -281,4 +308,27 @@
 			</a>
 		{/if}
 	</div>
+
+	<!--
+	Every active filter in one place, each removable. This is the only on-screen answer to "what
+	is filtering this table" for someone arriving on a shared link, and keeping it out of the
+	controls row is what stops it disturbing their alignment.
+	-->
+	{#if activeFilters.length > 0}
+		<ul class="flex flex-wrap items-center gap-1.5">
+			{#each activeFilters as filter (filter.key)}
+				<li>
+					<button
+						type="button"
+						onclick={filter.remove}
+						aria-label={t(locale, 'combobox.remove', { label: filter.label })}
+						class="inline-flex items-center gap-1 rounded-full bg-accent-surface px-2.5 py-1 text-xs font-medium text-accent-ink hover:bg-accent hover:text-accent-foreground"
+					>
+						{filter.label}
+						<span aria-hidden="true">×</span>
+					</button>
+				</li>
+			{/each}
+		</ul>
+	{/if}
 </form>

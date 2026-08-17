@@ -306,40 +306,4 @@ describe('Combobox', () => {
 		// Reserved rather than removed, so labels do not jump sideways as selection changes.
 		expect(screen.container.querySelectorAll('li[role=option] svg')).toHaveLength(options.length);
 	});
-
-	it('lists the selection as removable chips, drawn from all options rather than the filtered ones', async () => {
-		const screen = render(Combobox, {
-			id: 'status',
-			label: 'Status',
-			options,
-			selected: ['draft', 'active']
-		});
-
-		await expect
-			.element(screen.getByRole('button', { name: 'Remove Draft filter' }))
-			.toBeInTheDocument();
-		await expect
-			.element(screen.getByRole('button', { name: 'Remove Active filter' }))
-			.toBeInTheDocument();
-
-		// Typing narrows the list; a chip must not vanish because the user is searching elsewhere.
-		const input = screen.getByRole('combobox', { name: 'Status' });
-		await input.fill('arch');
-		await expect
-			.element(screen.getByRole('button', { name: 'Remove Draft filter' }))
-			.toBeInTheDocument();
-	});
-
-	it('removes a filter when its chip is pressed', async () => {
-		const screen = render(Combobox, {
-			id: 'status',
-			label: 'Status',
-			options,
-			selected: ['draft']
-		});
-
-		await screen.getByRole('button', { name: 'Remove Draft filter' }).click();
-
-		expect(screen.container.querySelectorAll('li > button').length).toBe(0);
-	});
 });
