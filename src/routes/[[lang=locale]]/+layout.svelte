@@ -18,6 +18,15 @@
 	// requests during SSR, leaking one user's toast into another user's response.
 	setContext(TOAST_KEY, createToastQueue());
 
+	// hooks.server.ts substitutes %lang% into the opening <html> tag, which only happens for a full
+	// document response — a client-side navigation between locales cannot go through it, so without
+	// this the attribute keeps announcing the language the tab was opened in. That is a correctness
+	// problem for screen readers and for the browser's own hyphenation and translation prompts,
+	// not a cosmetic one.
+	$effect(() => {
+		document.documentElement.lang = locale;
+	});
+
 	// Cross-document-style transitions for client-side navigations. Returning a promise makes
 	// SvelteKit wait for the transition to be ready before swapping the DOM; resolving inside the
 	// callback and then awaiting navigation.complete is the order the API requires.

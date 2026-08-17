@@ -4,12 +4,13 @@ import { users } from '$lib/server/data/fixtures';
 import { SESSION_COOKIE, createSession } from '$lib/server/auth/session';
 import { isSameOrigin } from '$lib/server/url';
 import type { Actions, PageServerLoad } from './$types';
+import { localeFromParams } from '$lib/i18n/locale';
 
 export const config = { runtime: 'nodejs22.x' };
 export const prerender = false;
 
-export const load: PageServerLoad = ({ locals, url }) => ({
-	locale: locals.locale,
+export const load: PageServerLoad = ({ params, locals, url }) => ({
+	locale: localeFromParams(params.lang, locals.locale),
 	redirectTo: url.searchParams.get('redirectTo') ?? `/${locals.locale}/dashboard/items`
 });
 

@@ -1,10 +1,11 @@
 import { listPosts } from '$lib/server/data/posts.repo';
 import type { EntryGenerator, PageServerLoad } from './$types';
+import { localeFromParams } from '$lib/i18n/locale';
 
 export const prerender = true;
 export const entries: EntryGenerator = () => [{ lang: 'en' }, { lang: 'de' }];
 
-export const load: PageServerLoad = ({ locals }) => ({
-	locale: locals.locale,
+export const load: PageServerLoad = ({ params, locals }) => ({
+	locale: localeFromParams(params.lang, locals.locale),
 	...listPosts(1)
 });
