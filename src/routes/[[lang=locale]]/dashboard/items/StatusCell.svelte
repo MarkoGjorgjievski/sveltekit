@@ -64,7 +64,13 @@
 				// own optimistic value is still live and this response no longer speaks for the row,
 				// so this one resolves silently rather than reporting success for a value the row no
 				// longer shows.
-				const owned = optimistic.commit(ticket);
+				//
+				// `item.status` is handed over as the stale value the override is now standing in
+				// for. The write has been accepted but the *read* that refreshes this row is only
+				// starting below, so `item.status` is still the pre-edit value for another round
+				// trip; releasing the override here would flash it back on screen. ItemsTable
+				// releases the override when the refreshed rows actually arrive.
+				const owned = optimistic.commit(ticket, item.status);
 				if (owned) toasts.push(t(locale, 'dashboard.items.saved'), 'success');
 				// Only this query is invalidated — `invalidateAll()` would re-run every `load` on the
 				// page for a single row's status change. Invalidated even when superseded: the server

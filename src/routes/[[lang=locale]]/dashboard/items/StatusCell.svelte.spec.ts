@@ -275,15 +275,36 @@ describe('StatusCell — success path', () => {
 		const item = makeItem({ status: 'draft' });
 		fetchMock.mockReturnValue(Promise.resolve(successResponse({ ...item, status: 'active' })));
 
-		const { select, toasts, optimistic } = renderCell(item);
+		const { select, toasts } = renderCell(item);
 
 		await select.selectOptions('active');
 
 		await expect.poll(() => toasts.items.map((toast) => toast.message)).toContain('Saved.');
-		await expect.poll(() => optimistic.overrides.has(item.id)).toBe(false);
 		expect(invalidateMock).toHaveBeenCalledWith('app:items');
 		expect(invalidateMock).not.toHaveBeenCalledWith(undefined);
 		expect(invalidateMock).toHaveBeenCalledTimes(1);
+	});
+
+	// The flicker regression. `item` is never re-rendered here, which is exactly the state the real
+	// page is in for the whole gap between the write being accepted and the refreshed rows arriving:
+	// `item.status` is still "draft". An override released at commit time falls back to it, and the
+	// cell flashes the status the user just replaced. Holding the override is what prevents that,
+	// so the select must still read "active" *after* the success response has been fully handled.
+	it('keeps showing the accepted value after the response, while the row itself is still stale', async () => {
+		const item = makeItem({ status: 'draft' });
+		fetchMock.mockReturnValue(Promise.resolve(successResponse({ ...item, status: 'active' })));
+
+		const { select, toasts, optimistic } = renderCell(item);
+
+		await select.selectOptions('active');
+
+		// The saved toast only fires after commit has run, so waiting on it means the response has
+		// been handled — this is not asserting on a value that simply has not been touched yet.
+		await expect.poll(() => toasts.items.map((toast) => toast.message)).toContain('Saved.');
+
+		expect(item.status).toBe('draft'); // the row the cell would fall back to is still pre-edit
+		expect(optimistic.overrides.get(item.id)?.value).toBe('active');
+		await expect.element(select).toHaveValue('active');
 	});
 
 	it('also invalidates app:items on a failure, so a row that drifted from server truth gets re-read', async () => {

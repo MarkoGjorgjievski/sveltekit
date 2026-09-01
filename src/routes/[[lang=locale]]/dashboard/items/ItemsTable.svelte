@@ -29,6 +29,15 @@
 	// component rather than resetting mid-edit.
 	const optimistic = createOptimisticStatus();
 
+	// Refreshed rows land here, a full read round trip after the write that caused them was
+	// accepted — so this is the first moment an accepted edit's override is safe to release, and
+	// the only place that knows it has arrived. Every page of rows is offered to the store, not
+	// just edited ones: a row can also be changed by someone else, and `reconcile` is what stops a
+	// confirmed override from shadowing that.
+	$effect(() => {
+		for (const row of page.rows) optimistic.reconcile(row.id, row.status);
+	});
+
 	const COLUMNS: { key: SortKey; label: MessageKey; numeric: boolean }[] = [
 		{ key: 'name', label: 'dashboard.items.column.name', numeric: false },
 		{ key: 'status', label: 'dashboard.items.column.status', numeric: false },
